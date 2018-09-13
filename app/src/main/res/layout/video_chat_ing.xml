@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/video_chating"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.qiniu.droid.rtc.QNRemoteSurfaceView
+        android:id="@+id/qnr_remote"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <com.qiniu.droid.rtc.QNLocalSurfaceView
+        android:id="@+id/qnr_local"
+        android:layout_width="0dp"
+        android:layout_height="0dp" />
+
+    <TextView
+        android:id="@+id/tv_ing_time"
+        android:layout_width="wrap_content"
+        android:layout_height="30dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginTop="6dp"
+        android:textColor="#FFFFFFFF"
+        android:textSize="12sp" />
+
+    <ImageView
+        android:id="@+id/iv_change_camera"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="6dp"
+        android:layout_marginTop="6dp"
+        android:src="@drawable/ic_change_camera" />
+
+    <ImageView
+        android:id="@+id/iv_ing_end_call"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="18dp"
+        android:src="@drawable/ic_endcall"
+        android:visibility="invisible" />
+</RelativeLayout>

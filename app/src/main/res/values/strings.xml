@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">VideoChat</string>
+    <string name="invite_you_to_video">invite you to video chat</string>
+    <string name="waiting_to_answer">wait to be answered</string>
+</resources>

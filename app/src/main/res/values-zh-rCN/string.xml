@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="invite_you_to_video">邀请您视频聊天</string>
+    <string name="waiting_to_answer">等待对方接受邀请···</string>
+</resources>
