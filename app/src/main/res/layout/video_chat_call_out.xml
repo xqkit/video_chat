@@ -5,9 +5,16 @@
     android:layout_height="match_parent">
 
     <ImageView
+        android:id="@+id/iv_bg_call_out"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#D9000000" />
+        android:scaleX="1.4"
+        android:scaleY="1.4" />
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000" />
 
     <TextView
         android:id="@+id/tv_out_name"

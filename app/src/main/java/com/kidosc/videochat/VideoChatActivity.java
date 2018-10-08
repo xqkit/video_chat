@@ -37,22 +37,37 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private static final String TAG = "VideoChatManager";
     private static final int CALL_UPDATE = 0;
     private static final int SWITCH_CAMERA = 2;
-    private String mContactPhoto;
-    private String mChatName;
-    private ImageView mIvEndCall;
-    private int mType;
-    private String mChatId;
-    private int mMyId;
+    private static final int CHECK_IS_ANSWER = 3;
+
     private RelativeLayout mInCallRl;
     private RelativeLayout mCallOutRl;
+    private ImageView mIvEndCall;
+    private ImageView mAnswerIv;
+    private ImageView mIvChangeCamera;
     private RelativeLayout mVideoChatingView;
+
     private VideoChatManager mVideoChatManager;
+    private RefusalReceiver mRefusalReceiver;
+    private AudioManager mAudioManager;
+
+    private String mContactPhoto;
+    private String mChatName;
+    private String mChatId;
+    private String mRoomToken;
+
+    private boolean isAnswer = false;
+
+    private int mMyId;
+    private int mType;
+    private int maxVolume;
+    private int currentVolume;
 
     @SuppressLint("HandlerLeak")
     private Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
+            Log.d(TAG, "msg.what : " + msg.what);
             switch (msg.what) {
                 case CALL_UPDATE:
                     updateRemoteView((SurfaceView) msg.obj);
@@ -62,18 +77,16 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                     mIvChangeCamera.setEnabled(true);
                     Toast.makeText(getApplicationContext(), "切换成功", Toast.LENGTH_SHORT).show();
                     break;
+                case CHECK_IS_ANSWER:
+                    if (!isAnswer) {
+                        finish();
+                    }
+                    break;
                 default:
                     break;
             }
         }
     };
-    private String mRoomToken;
-    private RefusalReceiver mRefusalReceiver;
-    private AudioManager mAudioManager;
-    private int maxVolmue;
-    private int currentVolume;
-    private ImageView mAnswerIv;
-    private ImageView mIvChangeCamera;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -96,9 +109,10 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             setContentView(R.layout.video_chat_incall);
             mInCallRl = (RelativeLayout) findViewById(R.id.rl_video_bg);
             mAnswerIv = (ImageView) findViewById(R.id.iv_incall_answer_call);
+            ImageView bgIncall = (ImageView) findViewById(R.id.iv_bg_incall);
             mAnswerIv.setOnClickListener(this);
             findViewById(R.id.iv_incall_end_call).setOnClickListener(this);
-            Utils.setDefaultBackgroundPhoto(mContactPhoto, mInCallRl);
+            Utils.setDefaultBackgroundPhoto(mContactPhoto, bgIncall);
             TextView tvName = (TextView) findViewById(R.id.tv_incall_name);
             tvName.setText(mChatName);
             Log.d(TAG, "call in : " + mChatName);
@@ -108,21 +122,26 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             mCallOutRl = (RelativeLayout) findViewById(R.id.rl_call_out_bg);
             findViewById(R.id.iv_out_end_call).setOnClickListener(this);
             TextView tvName = (TextView) findViewById(R.id.tv_out_name);
+            ImageView bgCallOut = (ImageView) findViewById(R.id.iv_bg_call_out);
             tvName.setText(mChatName);
             mVideoChatManager.call(mMyId, mChatId);
             Log.d(TAG, "call out : " + mChatName);
+            Utils.setDefaultBackgroundPhoto(mContactPhoto, bgCallOut);
             if (Constant.IS_AUDE) {
                 mRefusalReceiver = new RefusalReceiver();
                 IntentFilter intentFilter = new IntentFilter();
                 intentFilter.addAction(Constant.REFUSAL_CHAT_ACTION);
                 registerReceiver(mRefusalReceiver, intentFilter);
             }
+            mHandler.sendEmptyMessageDelayed(CHECK_IS_ANSWER, 60 * 1000);
         }
         mVideoChatManager.setCallListener(this);
         mAudioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        maxVolmue = mAudioManager.getStreamMaxVolume(AudioManager.STREAM_SYSTEM);
-        currentVolume = mAudioManager.getStreamVolume(AudioManager.STREAM_SYSTEM);
-        Log.d(TAG, "maxVolmue:" + maxVolmue + ",currentVolume:" + currentVolume);
+        if (mAudioManager != null) {
+            maxVolume = mAudioManager.getStreamMaxVolume(AudioManager.STREAM_SYSTEM);
+            currentVolume = mAudioManager.getStreamVolume(AudioManager.STREAM_SYSTEM);
+        }
+        Log.d(TAG, "maxVolume:" + maxVolume + ",currentVolume:" + currentVolume);
         setMaxVolume(true);
     }
 
@@ -132,7 +151,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      * @param flag true:是
      */
     private void setMaxVolume(boolean flag) {
-        mAudioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, flag ? maxVolmue : currentVolume, AudioManager.FLAG_PLAY_SOUND);
+        mAudioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, flag ? maxVolume : currentVolume, AudioManager.FLAG_PLAY_SOUND);
     }
 
     private void initIntent(Intent intent) {
@@ -230,6 +249,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      */
     private void updateRemoteView(SurfaceView remoteView) {
         Log.d(TAG, "updateRemoteView");
+        isAnswer = true;
         mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
         mIvChangeCamera = (ImageView) mVideoChatingView.findViewById(R.id.iv_change_camera);
         TextView tvTime = (TextView) mVideoChatingView.findViewById(R.id.tv_ing_time);
