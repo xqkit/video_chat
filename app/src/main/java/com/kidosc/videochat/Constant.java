@@ -24,8 +24,8 @@ public class Constant {
     public static final String JC_APP_KEY = "75e06df8717cb0df36b35097";
     public static final String AUDE = "AUDE";
     public static final boolean IS_AUDE = Build.MODEL.equals(Constant.AUDE);
-    public static final int VIDEO_BITRATE = 15;
-    public static final int VIDEO_MAX_BITRATE = 30;
+    public static final int VIDEO_BITRATE = 1000;
+    public static final int VIDEO_MAX_BITRATE = 10 * 1000;
     /**
      * 硬编码
      */

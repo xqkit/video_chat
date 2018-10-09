@@ -189,11 +189,12 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      */
     private void initQnSetting() {
         Log.d(TAG, "initQnSetting");
-        mRTCSetting.setAudioBitrate(100 * 1000).setVideoBitrate(Constant.VIDEO_BITRATE).setBitrateRange(0
-                , Constant.VIDEO_MAX_BITRATE).setCameraID(QNRTCSetting.CAMERA_FACING_ID.FRONT)
-                .setHWCodecEnabled(Constant.IS_HW_CODEC).setVideoPreviewFormat(new QNVideoFormat(640
-                , 480, 20))
-                .setVideoEncodeFormat(new QNVideoFormat(Constant.VIDEO_CHAT_WIDTH, Constant.VIDEO_CHAT_HEIGHT, QNRTCSetting.DEFAULT_FPS));
+        mRTCSetting.setAudioBitrate(100 * 1000).setVideoBitrate(Constant.VIDEO_BITRATE)
+                .setBitrateRange(0, Constant.VIDEO_MAX_BITRATE)
+                .setCameraID(QNRTCSetting.CAMERA_FACING_ID.FRONT).setHWCodecEnabled(Constant.IS_HW_CODEC)
+                .setVideoPreviewFormat(new QNVideoFormat(640, 480, 20))
+                .setVideoEncodeFormat(new QNVideoFormat(Constant.VIDEO_CHAT_WIDTH, Constant.VIDEO_CHAT_HEIGHT
+                        , QNRTCSetting.DEFAULT_FPS));
         mRTCSetting.setVideoPreviewFormat(new QNVideoFormat(Constant.VIDEO_CHAT_WIDTH
                 , Constant.VIDEO_CHAT_HEIGHT, QNRTCSetting.DEFAULT_FPS));
         mRTCManager.addRemoteWindow(mQnRemoteSurfaceView);
@@ -518,6 +519,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     public void onJoinedRoom() {
         Log.d(TAG, "onJoinedRoom");
         mRTCManager.publish();
+        mRTCManager.setMirror(true);
     }
 
     @Override
