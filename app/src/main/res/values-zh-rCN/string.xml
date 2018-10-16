@@ -2,4 +2,6 @@
 <resources>
     <string name="invite_you_to_video">邀请您视频聊天</string>
     <string name="waiting_to_answer">等待对方接受邀请···</string>
+    <string name="request_permission">申请权限失败</string>
+    <string name="login_failed">登录失败</string>
 </resources>

@@ -13,13 +13,8 @@ public class Constant {
      * 列表传递的数据
      */
     public static final String REFUSAL_CHAT_ACTION = "com.kidosc.videochat.refusal";
-    public final static String EXTRA_CHAT_TYPE = "ExtraChatType";
-    public final static String EXTRA_CHAT_PRIMARYKEY = "ExtraChatPrimarykey";
-    public final static String EXTRA_CHAT_ID = "ExtraChatId";
-    public final static String EXTRA_CHAT_PHOTO = "ExtraChatPhoto";
-    public final static String EXTRA_CHAT_NAME = "ExtraChatName";
-    public static final String EXTRA_MY_ID = "ExtraMyId";
-    public static final String EXTRA_ROOM_TOKEN = "roomToken";
+    public static final String EXTRA_VIDEO_INFO = "ExtraVideoInfo";
+    public static final String ACTION_CLASS_BAGIN = "com.zeusis.socket.class.ban.bagin";
 
     public static final String JC_APP_KEY = "75e06df8717cb0df36b35097";
     public static final String AUDE = "AUDE";
@@ -40,4 +35,7 @@ public class Constant {
     public static final String PROTOCOL_CALL_OUT = "/Service/VideoCallService.asmx/WVideoCallOut";
     public static final String PROTOCOL_CALL_REFUSAL = "/Service/VideoCallService.asmx/WRefusalVideoCall";
     public static final String PROTOCOL_CALL_TEMPERATURE = "/Service/VideoCallService.asmx/WTemperatureNotify";
+    public static final String PROTOCOL_CALL_HANGUP = "/Service/VideoCallService.asmx/WHangUpVideoCall";
+    public static final int INCALL = 0;
+    public static final int CALLOUT = 2;
 }

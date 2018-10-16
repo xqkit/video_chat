@@ -1,7 +1,6 @@
 package com.kidosc.videochat;
 
 import android.content.Context;
-import android.content.Intent;
 import android.os.Handler;
 import android.text.TextUtils;
 import android.util.Log;
@@ -21,6 +20,8 @@ import com.juphoon.cloud.JCClientCallback;
 import com.juphoon.cloud.JCMediaDevice;
 import com.juphoon.cloud.JCMediaDeviceCallback;
 import com.juphoon.cloud.JCMediaDeviceVideoCanvas;
+import com.juphoon.cloud.JCPush;
+import com.juphoon.cloud.JCPushTemplate;
 import com.qiniu.droid.rtc.QNCameraSwitchResultCallback;
 import com.qiniu.droid.rtc.QNLocalSurfaceView;
 import com.qiniu.droid.rtc.QNLogLevel;
@@ -81,6 +82,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private static final String CALL_OUT = Constant.PROTOCOL + Constant.PROTOCOL_CALL_OUT;
     private static final String CALL_TEMPERATURE = Constant.PROTOCOL + Constant.PROTOCOL_CALL_TEMPERATURE;
     private static final String CALL_REFUSAL = Constant.PROTOCOL + Constant.PROTOCOL_CALL_REFUSAL;
+    private static final String CALL_HANGUP = Constant.PROTOCOL + Constant.PROTOCOL_CALL_HANGUP;
 
     private static final String CHILD_ID = "childId";
     private static final String RECEIVER_ID = "receiverId";
@@ -107,7 +109,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private static final String DATA = "Data";
     private String mChatId = "";
 
-    public volatile boolean mLoginVideoChat;
     private QNRemoteSurfaceView mQnRemoteSurfaceView;
     private QNLocalSurfaceView mQnLocalSurfaceView;
     private Handler mHandler = new Handler();
@@ -177,11 +178,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             mRTCSetting = new QNRTCSetting();
             return;
         }
+        //ju phoon
         client = JCClient.create(mContext, Constant.JC_APP_KEY, this, null);
         mediaDevice = JCMediaDevice.create(client, this);
         call = JCCall.create(client, mediaDevice, this);
-        // 设置手表模式
-        mediaDevice.setWatchMode(true);
     }
 
     /**
@@ -206,20 +206,19 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     }
 
     /**
-     * 登录视频聊天的账号体系
+     * 登录菊风账号
      */
-    public void loginVideoChat(String account) {
-        if (Constant.IS_AUDE) {
-            //add remote view after set remote view
-            //TODO for now just goto answer
-            return;
-        }
-        mLoginVideoChat = true;
-        Log.d(TAG, "account : " + account);
+    public void loginJcChat(String account) {
         if (TextUtils.isEmpty(account)) {
             return;
         }
-        client.login(account, "1");
+        if (client.getState() != JCClient.STATE_LOGINED) {
+            boolean isLogin = client.login(account, "1");
+            Log.d(TAG, "isLogin : " + isLogin);
+            if (!isLogin) {
+                Toast.makeText(mContext, mContext.getString(R.string.login_failed), Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     /**
@@ -328,9 +327,16 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      */
     public void destroy() {
         if (Constant.IS_AUDE && mRTCManager != null) {
+            mRTCManager.leaveRoom();
             mRTCManager.destroy();
             return;
         }
+        if (!Constant.IS_AUDE && mCallItem != null) {
+            boolean isTerm = call.term(mCallItem, 0, "");
+            Log.d(TAG, "destroy isTerm : " + isTerm);
+        }
+        //不主动退出账号，如果主动退出，会清掉push参数
+        //logoutVideoChat();
         mediaDevice.stopCamera();
     }
 
@@ -340,7 +346,8 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     public void onEndCall() {
         stopCallInfoTimer();
         if (!Constant.IS_AUDE && mCallItem != null) {
-            call.term(mCallItem, 0, "");
+            boolean isTerm = call.term(mCallItem, 0, "");
+            Log.d(TAG, "isTerm : " + isTerm);
             return;
         }
         if (Constant.IS_AUDE) {
@@ -350,9 +357,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     }
 
     /**
-     * 主动挂断 只针对 七牛
+     * 挂断 只针对 七牛
      */
     public void onEndCall(int myId, String uid) {
+        if (!Constant.IS_AUDE) {
+            onEndCall();
+            return;
+        }
         Log.d(TAG, "onEndCall myId : " + myId + " , uid : " + uid);
         JSONObject jsonObject = getJsonObject(myId, uid, 0, 1);
         JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_REFUSAL, jsonObject
@@ -369,6 +380,34 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         });
         mRequestQueue.add(objectRequest);
         mRTCManager.leaveRoom();
+    }
+
+    /**
+     * 取消通话
+     *
+     * @param myId myId
+     * @param uid  uid
+     */
+    public void onHangUp(int myId, String uid) {
+        if (!Constant.IS_AUDE) {
+            onEndCall();
+            return;
+        }
+        Log.d(TAG, "onHangUp myId : " + myId + " , uid : " + uid);
+        JSONObject jsonObject = getJsonObject(myId, uid, 0, 1);
+        JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_HANGUP, jsonObject
+                , new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject jsonObject) {
+                Log.d(TAG, "onResponse : " + jsonObject.toString());
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError volleyError) {
+                Log.e(TAG, "onErrorResponse:" + volleyError.getMessage());
+            }
+        });
+        mRequestQueue.add(objectRequest);
     }
 
     /**
@@ -441,6 +480,18 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onLogin(boolean b, int i) {
         Log.d(TAG, b ? "登录成功" : "登录失败");
+        if (b) {
+            mCallListener.onLoginJc();
+            // 向菊风平台添加推送参数
+            JCPush push = JCPush.create(client);
+            JCPushTemplate pushInfo = new JCPushTemplate();
+            pushInfo.initWithMiPush(mContext.getPackageName(), "kido");
+            push.addPushInfo(pushInfo);
+            pushInfo.initWithCall(JCPushTemplate.XIAOMI, client.getUserId(), "呼叫", "0");
+            push.addPushInfo(pushInfo);
+            pushInfo.initWithText(JCPushTemplate.XIAOMI, client.getUserId(), "Text", "消息", "0");
+            push.addPushInfo(pushInfo);
+        }
     }
 
     @Override
@@ -468,11 +519,8 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         Log.d(TAG, "onCallItemAdd , DisplayName : " + jcCallItem.getDisplayName());
         mCallItem = jcCallItem;
         if (mCallItem.getDirection() == JCCall.DIRECTION_IN) {
-            Log.d(TAG, "DIRECTION_IN");
-            Intent intent = new Intent(mContext, VideoChatActivity.class);
-            intent.putExtra(Constant.EXTRA_CHAT_NAME, jcCallItem.getDisplayName());
-            intent.putExtra(Constant.EXTRA_CHAT_TYPE, 0);
-            mContext.startActivity(intent);
+            Log.d(TAG, "DIRECTION_IN : onCallAdd");
+            mCallListener.onCallAdd();
         }
     }
 
@@ -491,7 +539,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     }
 
     @Override
-    public void onCallItemUpdate(JCCallItem jcCallItem) {
+    public void onCallItemUpdate(JCCallItem jcCallItem, JCCallItem.ChangeParam changeParam) {
         if (jcCallItem.getState() == JCCall.STATE_TALKING) {
             mediaDevice.startCamera();
             if (mRemote == null) {
