@@ -13,6 +13,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.Process;
+import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
@@ -112,6 +113,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             //初始化拨号界面
             initCallOutUi();
         }
+        Settings.Global.putInt(getContentResolver(), "video_status", 1);
         initAudio();
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         //亮屏
@@ -148,12 +150,20 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private void initAudio() {
         mAudioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         if (mAudioManager != null) {
-            maxVolume = mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-            currentVolume = mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            maxVolume = mAudioManager.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL);
+            currentVolume = mAudioManager.getStreamVolume(AudioManager.STREAM_VOICE_CALL);
         }
         Log.d(TAG, "maxVolume:" + maxVolume + ",currentVolume:" + currentVolume);
+        mAudioManager.requestAudioFocus(focusChangeListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
         setMaxVolume(true);
     }
+
+    AudioManager.OnAudioFocusChangeListener focusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+        @Override
+        public void onAudioFocusChange(int focusChange) {
+            Log.d(TAG, "focusChange : " + focusChange);
+        }
+    };
 
     /**
      * 初始化拨号界面
@@ -225,7 +235,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      * @param flag true:是
      */
     private void setMaxVolume(boolean flag) {
-        mAudioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, flag ? maxVolume : currentVolume, AudioManager.FLAG_PLAY_SOUND);
+        mAudioManager.setStreamVolume(AudioManager.STREAM_VOICE_CALL, flag ? maxVolume : currentVolume, AudioManager.FLAG_PLAY_SOUND);
     }
 
     @Override
@@ -298,6 +308,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      */
     private void updateRemoteView(SurfaceView remoteView) {
         Log.d(TAG, "updateRemoteView");
+        Settings.Global.putInt(getContentResolver(), "video_status", 2);
         isAnswer = true;
         mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
         mIvChangeCamera = (ImageView) mVideoChatingView.findViewById(R.id.iv_change_camera);
@@ -349,6 +360,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "onDestroy");
+        Settings.Global.putInt(getContentResolver(), "video_status", 0);
+        mAudioManager.abandonAudioFocus(focusChangeListener);
         setMaxVolume(false);
         mVideoChatManager.destroy();
         mVideoChatManager = null;
