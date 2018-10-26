@@ -17,9 +17,11 @@ import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
@@ -50,6 +52,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private ImageView mAnswerIv;
     private ImageView mIvChangeCamera;
     private RelativeLayout mVideoChatingView;
+    private VideoChatView mPlayerView;
+    private RelativeLayout.LayoutParams volumeParams;
 
     private VideoChatManager mVideoChatManager;
     private RefusalReceiver mRefusalReceiver;
@@ -67,6 +71,14 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private int mType;
     private int maxVolume;
     private int currentVolume;
+    /**
+     * 媒体音量等级 musicVolume:11,systemVolume:5
+     */
+    private int[] mVoiceCallLevelArray = {0, 1, 3, 4, 5};
+    /**
+     * 0 1 2 3 4 系统音量等级
+     */
+    private int[] mSettingLevelArray = {0, 1, 3, 5, 7};
 
     private PowerManager.WakeLock mWakelock;
 
@@ -106,6 +118,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         initIntent(getIntent());
         initVideoSettings();
+        mPlayerView = new VideoChatView(this);
+        mPlayerView.setHandler(mHandler);
+        volumeParams = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT
+                , ViewGroup.LayoutParams.MATCH_PARENT);
+        volumeParams.addRule(RelativeLayout.CENTER_IN_PARENT);
         if (mType == Constant.INCALL) {
             //初始化来电界面
             initIncallUi();
@@ -113,8 +130,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             //初始化拨号界面
             initCallOutUi();
         }
-        Settings.Global.putInt(getContentResolver(), "video_status", 1);
-        initAudio();
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         //亮屏
         if (pm != null) {
@@ -122,6 +137,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             mWakelock.setReferenceCounted(false);
             mWakelock.acquire();
         }
+        initAudio();
     }
 
     /**
@@ -155,7 +171,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         }
         Log.d(TAG, "maxVolume:" + maxVolume + ",currentVolume:" + currentVolume);
         mAudioManager.requestAudioFocus(focusChangeListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
-        setMaxVolume(true);
     }
 
     AudioManager.OnAudioFocusChangeListener focusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
@@ -229,15 +244,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         }
     }
 
-    /**
-     * 是否设置最大音量
-     *
-     * @param flag true:是
-     */
-    private void setMaxVolume(boolean flag) {
-        mAudioManager.setStreamVolume(AudioManager.STREAM_VOICE_CALL, flag ? maxVolume : currentVolume, AudioManager.FLAG_PLAY_SOUND);
-    }
-
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -249,6 +255,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        Settings.Global.putInt(getContentResolver(), "video_status", 1);
     }
 
     @Override
@@ -328,12 +335,14 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 mInCallRl.addView(remoteView, params);
             }
             mInCallRl.addView(mVideoChatingView, params);
+            mInCallRl.addView(mPlayerView, volumeParams);
         } else if (mType == Constant.CALLOUT) {
             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mCallOutRl.getWidth(), mCallOutRl.getHeight());
             if (!Constant.IS_AUDE) {
                 mCallOutRl.addView(remoteView, params);
             }
             mCallOutRl.addView(mVideoChatingView, params);
+            mCallOutRl.addView(mPlayerView, volumeParams);
         }
         mVideoChatManager.startCallInfoTimer(tvTime);
     }
@@ -362,7 +371,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         Log.d(TAG, "onDestroy");
         Settings.Global.putInt(getContentResolver(), "video_status", 0);
         mAudioManager.abandonAudioFocus(focusChangeListener);
-        setMaxVolume(false);
         mVideoChatManager.destroy();
         mVideoChatManager = null;
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -382,6 +390,43 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onPause() {
         super.onPause();
         Log.d(TAG, "onPause");
+        Settings.Global.putInt(getContentResolver(), "video_status", 0);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        //长按处理
+        if (event.getRepeatCount() != 0) {
+            return super.onKeyDown(keyCode, event);
+        }
+        int vol = mAudioManager.getStreamVolume(AudioManager.STREAM_VOICE_CALL);
+        Log.d(TAG, "vol:" + vol + " , keyCode:" + keyCode);
+        //back键下调音乐音量，power键上调音乐键
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (vol <= mVoiceCallLevelArray[1]) {
+                vol = mVoiceCallLevelArray[0];
+            } else if (vol > mVoiceCallLevelArray[1] && vol <= mVoiceCallLevelArray[2]) {
+                vol = mVoiceCallLevelArray[1];
+            } else if (vol > mVoiceCallLevelArray[2] && vol <= mVoiceCallLevelArray[3]) {
+                vol = mVoiceCallLevelArray[2];
+            } else if (vol > mVoiceCallLevelArray[3] && vol <= mVoiceCallLevelArray[4]) {
+                vol = mVoiceCallLevelArray[3];
+            }
+        } else if (keyCode == KeyEvent.KEYCODE_POWER) {
+            if (vol <= mVoiceCallLevelArray[1]) {
+                vol = mVoiceCallLevelArray[2];
+            } else if (vol > mVoiceCallLevelArray[1] && vol <= mVoiceCallLevelArray[2]) {
+                vol = mVoiceCallLevelArray[3];
+            } else if (vol > mVoiceCallLevelArray[2] && vol <= mVoiceCallLevelArray[3]) {
+                vol = mVoiceCallLevelArray[4];
+            }
+        }
+        Log.d(TAG, "setVolume vol : " + vol);
+        mAudioManager.setStreamVolume(AudioManager.STREAM_VOICE_CALL, vol, AudioManager.FLAG_VIBRATE);
+        if (mPlayerView != null) {
+            mPlayerView.setVolumeView(vol);
+        }
+        return true;
     }
 
     class RefusalReceiver extends BroadcastReceiver {
