@@ -182,6 +182,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         client = JCClient.create(mContext, Constant.JC_APP_KEY, this, null);
         mediaDevice = JCMediaDevice.create(client, this);
         call = JCCall.create(client, mediaDevice, this);
+        mediaDevice.setWatchMode(true);
     }
 
     /**
@@ -539,7 +540,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     }
 
     @Override
-    public void onCallItemUpdate(JCCallItem jcCallItem, JCCallItem.ChangeParam changeParam) {
+    public void onCallItemUpdate(JCCallItem jcCallItem) {
         if (jcCallItem.getState() == JCCall.STATE_TALKING) {
             mediaDevice.startCamera();
             if (mRemote == null) {

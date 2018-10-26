@@ -75,10 +75,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      * 媒体音量等级 musicVolume:11,systemVolume:5
      */
     private int[] mVoiceCallLevelArray = {0, 1, 3, 4, 5};
-    /**
-     * 0 1 2 3 4 系统音量等级
-     */
-    private int[] mSettingLevelArray = {0, 1, 3, 5, 7};
 
     private PowerManager.WakeLock mWakelock;
 
