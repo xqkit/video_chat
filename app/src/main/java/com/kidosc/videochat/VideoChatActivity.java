@@ -64,17 +64,17 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private String mChatId;
     private String mRoomToken;
     private String mImei;
+    private int mMyId;
+    private int mType;
 
     private boolean isAnswer = false;
 
-    private int mMyId;
-    private int mType;
     private int maxVolume;
     private int currentVolume;
     /**
      * 媒体音量等级 musicVolume:11,systemVolume:5
      */
-    private int[] mVoiceCallLevelArray = {0, 1, 3, 4, 5};
+    private int[] mVoiceCallLevelArray = {1, 2, 3, 4, 5};
 
     private PowerManager.WakeLock mWakelock;
 
@@ -131,7 +131,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         if (pm != null) {
             mWakelock = pm.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_BRIGHT_WAKE_LOCK, LOCK_TAG);
             mWakelock.setReferenceCounted(false);
-            mWakelock.acquire();
+            mWakelock.acquire(60 * 1000);
         }
         initAudio();
     }
@@ -252,6 +252,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         super.onResume();
         Log.d(TAG, "onResume");
         Settings.Global.putInt(getContentResolver(), "video_status", 1);
+        mVideoChatManager.resume();
     }
 
     @Override
@@ -365,10 +366,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "onDestroy");
-        Settings.Global.putInt(getContentResolver(), "video_status", 0);
         mAudioManager.abandonAudioFocus(focusChangeListener);
-        mVideoChatManager.destroy();
-        mVideoChatManager = null;
+        if (mVideoChatManager != null) {
+            mVideoChatManager.destroy();
+            mVideoChatManager = null;
+        }
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         mHandler.removeCallbacksAndMessages(null);
         if (mRefusalReceiver != null) {
@@ -387,6 +389,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         super.onPause();
         Log.d(TAG, "onPause");
         Settings.Global.putInt(getContentResolver(), "video_status", 0);
+        mVideoChatManager.pause();
     }
 
     @Override
@@ -409,11 +412,13 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 vol = mVoiceCallLevelArray[3];
             }
         } else if (keyCode == KeyEvent.KEYCODE_POWER) {
-            if (vol <= mVoiceCallLevelArray[1]) {
+            if (vol < mVoiceCallLevelArray[1]) {
+                vol = mVoiceCallLevelArray[1];
+            } else if (vol >= mVoiceCallLevelArray[1] && vol < mVoiceCallLevelArray[2]) {
                 vol = mVoiceCallLevelArray[2];
-            } else if (vol > mVoiceCallLevelArray[1] && vol <= mVoiceCallLevelArray[2]) {
+            } else if (vol >= mVoiceCallLevelArray[2] && vol < mVoiceCallLevelArray[3]) {
                 vol = mVoiceCallLevelArray[3];
-            } else if (vol > mVoiceCallLevelArray[2] && vol <= mVoiceCallLevelArray[3]) {
+            } else if (vol >= mVoiceCallLevelArray[3]) {
                 vol = mVoiceCallLevelArray[4];
             }
         }

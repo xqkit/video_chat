@@ -22,6 +22,7 @@ import com.juphoon.cloud.JCMediaDeviceCallback;
 import com.juphoon.cloud.JCMediaDeviceVideoCanvas;
 import com.juphoon.cloud.JCPush;
 import com.juphoon.cloud.JCPushTemplate;
+import com.justalk.cloud.zmf.ZmfVideo;
 import com.qiniu.droid.rtc.QNCameraSwitchResultCallback;
 import com.qiniu.droid.rtc.QNLocalSurfaceView;
 import com.qiniu.droid.rtc.QNLogLevel;
@@ -80,7 +81,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private boolean mIsJoinedRoom = false;
 
     private static final String CALL_OUT = Constant.PROTOCOL + Constant.PROTOCOL_CALL_OUT;
-    private static final String CALL_TEMPERATURE = Constant.PROTOCOL + Constant.PROTOCOL_CALL_TEMPERATURE;
     private static final String CALL_REFUSAL = Constant.PROTOCOL + Constant.PROTOCOL_CALL_REFUSAL;
     private static final String CALL_HANGUP = Constant.PROTOCOL + Constant.PROTOCOL_CALL_HANGUP;
 
@@ -98,15 +98,11 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private static final String JSON = "json";
 
     /**
-     * 0: 成功,
-     * 否则 失败
-     */
-    private static final String CODE = "code";
-    private static final String MESSAGE = "Message";
-    /**
      * roomToken
      */
     private static final String DATA = "Data";
+    private static final int QI_NIU = 0;
+    private static final int JU_FENG = 1;
     private String mChatId = "";
 
     private QNRemoteSurfaceView mQnRemoteSurfaceView;
@@ -114,23 +110,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private Handler mHandler = new Handler();
     private long mBeginTime = 0;
     private RequestQueue mRequestQueue;
-    private boolean mhasSetRemote = false;
-
-    /*private VideoChatManager() {
-    }
-
-    private static VideoChatManager videoChatManager = null;
-
-    public static VideoChatManager getInstance() {
-        if (videoChatManager == null) {
-            synchronized (VideoChatManager.class) {
-                if (videoChatManager == null) {
-                    videoChatManager = new VideoChatManager();
-                }
-            }
-        }
-        return videoChatManager;
-    }*/
 
     /**
      * 设置监听回调
@@ -183,6 +162,11 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         mediaDevice = JCMediaDevice.create(client, this);
         call = JCCall.create(client, mediaDevice, this);
         mediaDevice.setWatchMode(true);
+        if (Constant.IS_V5) {
+            ZmfVideo.captureListenRotation(0, 0);
+            ZmfVideo.renderListenRotation(0, 0);
+        }
+        mediaDevice.startCamera();
     }
 
     /**
@@ -238,18 +222,24 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * @param uid  对方的id
      */
     public void call(int myId, String uid) {
-        Log.d(TAG, "myId " + myId + "  uid " + uid);
+        int pType;
         if (!Constant.IS_AUDE) {
             boolean isCallOk = call.call(uid, true, "kido");
             Log.d(TAG, "isCallOk : " + isCallOk);
-            return;
+            pType = JU_FENG;
+        } else {
+            pType = QI_NIU;
         }
-        JSONObject jsonObject = getJsonObject(myId, uid, 0, 0);
+        Log.d(TAG, "myId " + myId + "  uid " + uid + " , pType : " + pType);
+        JSONObject jsonObject = getJsonObject(myId, uid, 0, 0, pType);
         JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_OUT, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
-                Log.d(TAG, "onResponse : " + jsonObject.toString());
+                Log.d(TAG, "call out onResponse : " + jsonObject.toString());
+                if (!Constant.IS_AUDE) {
+                    return;
+                }
                 jsonObject = jsonObject.optJSONObject("d");
                 String data = jsonObject.optString(DATA);
                 initQnSetting();
@@ -261,7 +251,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError volleyError) {
-                Log.e(TAG, "onErrorResponse:" + volleyError.getMessage());
+                Log.e(TAG, "call out onErrorResponse:" + volleyError.getMessage());
             }
         });
         mRequestQueue.add(objectRequest);
@@ -271,7 +261,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 接听按钮响应事件
      */
     public void onAnswerCall(String mChatId, String token) {
-        Log.d(TAG, "onAnswerCall");
         this.mChatId = mChatId;
         if (!Constant.IS_AUDE && mCallItem.getDirection() == JCCall.DIRECTION_IN) {
             mHandler.postDelayed(new Runnable() {
@@ -282,8 +271,9 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                     } else {
                         mediaDevice.setCameraProperty(352, 282, 15);
                     }
+                    mediaDevice.enableSpeaker(true);
                     mIsAnswered = call.answer(mCallItem, true);
-                    Log.d(TAG, "answer : " + mIsAnswered);
+                    Log.d(TAG, "onAnswerCall answer : " + mIsAnswered);
                 }
             }, 500);
             return;
@@ -303,9 +293,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * @param uid      uid
      * @param cType    cType 0 : app , 1: watch
      * @param jsonType 0: call out , 1: refusal
+     * @param pType    0-qiniu 1-jufeng
      * @return json
      */
-    private JSONObject getJsonObject(int myId, String uid, int cType, int jsonType) {
+    private JSONObject getJsonObject(int myId, String uid, int cType, int jsonType, int pType) {
         JSONObject jsonObject = new JSONObject();
         try {
             jsonObject.put(CHILD_ID, myId);
@@ -315,7 +306,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                 jsonObject.put(SENDER_ID, uid);
             }
             jsonObject.put(C_TYPE, cType);
-            jsonObject.put(P_TYPE, 0);
+            jsonObject.put(P_TYPE, pType);
             jsonObject.put(JSON, "");
         } catch (JSONException e) {
             e.printStackTrace();
@@ -366,17 +357,17 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             return;
         }
         Log.d(TAG, "onEndCall myId : " + myId + " , uid : " + uid);
-        JSONObject jsonObject = getJsonObject(myId, uid, 0, 1);
+        JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, QI_NIU);
         JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_REFUSAL, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
-                Log.d(TAG, "onResponse : " + jsonObject.toString());
+                Log.d(TAG, "end call onResponse : " + jsonObject.toString());
             }
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError volleyError) {
-                Log.e(TAG, "onErrorResponse:" + volleyError.getMessage());
+                Log.e(TAG, "end call onErrorResponse:" + volleyError.getMessage());
             }
         });
         mRequestQueue.add(objectRequest);
@@ -395,17 +386,17 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             return;
         }
         Log.d(TAG, "onHangUp myId : " + myId + " , uid : " + uid);
-        JSONObject jsonObject = getJsonObject(myId, uid, 0, 1);
+        JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, QI_NIU);
         JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_HANGUP, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
-                Log.d(TAG, "onResponse : " + jsonObject.toString());
+                Log.d(TAG, "hang up onResponse : " + jsonObject.toString());
             }
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError volleyError) {
-                Log.e(TAG, "onErrorResponse:" + volleyError.getMessage());
+                Log.e(TAG, "hang up onErrorResponse:" + volleyError.getMessage());
             }
         });
         mRequestQueue.add(objectRequest);
@@ -507,22 +498,12 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     @Override
     public void onCameraUpdate() {
-
+        Log.d(TAG, "onCameraUpdate");
     }
 
     @Override
     public void onAudioOutputTypeChange(boolean b) {
-
-    }
-
-    @Override
-    public void onCallItemAdd(JCCallItem jcCallItem) {
-        Log.d(TAG, "onCallItemAdd , DisplayName : " + jcCallItem.getDisplayName());
-        mCallItem = jcCallItem;
-        if (mCallItem.getDirection() == JCCall.DIRECTION_IN) {
-            Log.d(TAG, "DIRECTION_IN : onCallAdd");
-            mCallListener.onCallAdd();
-        }
+        Log.d(TAG, "onAudioOutputTypeChange " + b);
     }
 
     @Override
@@ -540,22 +521,48 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     }
 
     @Override
+    public void onCallItemAdd(JCCallItem jcCallItem) {
+        Log.d(TAG, "onCallItemAdd , DisplayName : " + jcCallItem.getDisplayName());
+        mCallItem = jcCallItem;
+        if (jcCallItem.getActive()) {
+            mediaDevice.startCameraVideo(JCMediaDevice.RENDER_FULL_SCREEN);
+        }
+        if (mCallItem.getDirection() == JCCall.DIRECTION_IN) {
+            Log.d(TAG, "onCallItemAdd : onCallAdd");
+            mCallListener.onCallAdd();
+        }
+    }
+
+    @Override
     public void onCallItemUpdate(JCCallItem jcCallItem) {
         if (jcCallItem.getState() == JCCall.STATE_TALKING) {
-            mediaDevice.startCamera();
-            if (mRemote == null) {
-                Log.d(TAG, "show remote");
-                mRemote = mediaDevice.startVideo(jcCallItem.getRenderId(), JCMediaDevice.RENDER_FULL_SCREEN);
-                if (mCallListener != null) {
-                    mCallListener.onCallUpdate(mRemote.getVideoView());
+            if (jcCallItem.getVideo()) {
+                if (mRemote == null) {
+                    Log.d(TAG, "onCallItemUpdate remote");
+                    mRemote = mediaDevice.startVideo(jcCallItem.getRenderId(), JCMediaDevice.RENDER_FULL_SCREEN);
+                    if (mCallListener != null) {
+                        mCallListener.onCallUpdate(mRemote.getVideoView());
+                    }
                 }
             }
         }
     }
 
+    public void pause() {
+        if (!Constant.IS_AUDE) {
+            mediaDevice.enableSpeaker(false);
+        }
+    }
+
+    public void resume() {
+        if (!Constant.IS_AUDE && mediaDevice != null) {
+            mediaDevice.enableSpeaker(true);
+        }
+    }
+
     @Override
     public void onMessageReceive(String s, String s1, JCCallItem jcCallItem) {
-
+        Log.d(TAG, "onMessageReceive : " + s + "  " + s1);
     }
 
     /**
@@ -624,7 +631,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onRemoteUserJoined(String s) {
         Log.d(TAG, "onRemoteUserJoined user: " + s);
-//        mCallListener.onCallUpdate(null);
         mBeginTime = System.currentTimeMillis() / 1000;
     }
 
