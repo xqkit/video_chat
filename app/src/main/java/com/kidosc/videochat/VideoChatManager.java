@@ -35,6 +35,7 @@ import com.qiniu.droid.rtc.QNRoomEventListener;
 import com.qiniu.droid.rtc.QNRoomState;
 import com.qiniu.droid.rtc.QNStatisticsReport;
 import com.qiniu.droid.rtc.QNVideoFormat;
+import com.qiniu.droid.rtc.model.QNAudioDevice;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -166,6 +167,11 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             ZmfVideo.captureListenRotation(0, 0);
             ZmfVideo.renderListenRotation(0, 0);
         }
+        if (mCheck10) {
+            mediaDevice.setCameraProperty(352, 282, 10);
+        } else {
+            mediaDevice.setCameraProperty(352, 282, 15);
+        }
         mediaDevice.startCamera();
     }
 
@@ -266,11 +272,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             mHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    if (mCheck10) {
-                        mediaDevice.setCameraProperty(352, 282, 10);
-                    } else {
-                        mediaDevice.setCameraProperty(352, 282, 15);
-                    }
                     mediaDevice.enableSpeaker(true);
                     mIsAnswered = call.answer(mCallItem, true);
                     Log.d(TAG, "onAnswerCall answer : " + mIsAnswered);
@@ -356,7 +357,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             onEndCall();
             return;
         }
-        Log.d(TAG, "onEndCall myId : " + myId + " , uid : " + uid);
+        Log.d(TAG, "onEndCall myId : " + myId + " , uid : " + uid + " ...");
         JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, QI_NIU);
         JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_REFUSAL, jsonObject
                 , new Response.Listener<JSONObject>() {
@@ -668,6 +669,16 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     @Override
     public void onUserKickedOut(String s) {
+
+    }
+
+    @Override
+    public void onAudioRouteChanged(QNAudioDevice qnAudioDevice) {
+
+    }
+
+    @Override
+    public void onCreateMergeJobSuccess(String s) {
 
     }
 }
