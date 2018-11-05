@@ -33,10 +33,8 @@ public class Constant {
     /**
      * 协议地址
      */
-    public static final String PROTOCOL = "http://devcapp.artimen.cn:7001";
     public static final String PROTOCOL_CALL_OUT = "/Service/VideoCallService.asmx/WVideoCallOut";
     public static final String PROTOCOL_CALL_REFUSAL = "/Service/VideoCallService.asmx/WRefusalVideoCall";
-    public static final String PROTOCOL_CALL_TEMPERATURE = "/Service/VideoCallService.asmx/WTemperatureNotify";
     public static final String PROTOCOL_CALL_HANGUP = "/Service/VideoCallService.asmx/WHangUpVideoCall";
     public static final int INCALL = 0;
     public static final int CALLOUT = 2;

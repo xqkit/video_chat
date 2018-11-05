@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
+import android.media.SoundPool;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -70,6 +71,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private int mType;
 
     private boolean isAnswer = false;
+    private volatile boolean isFinish = false;
 
     private int maxVolume;
     private int currentVolume;
@@ -79,6 +81,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private int[] mVoiceCallLevelArray = {1, 2, 3, 4, 5};
 
     private PowerManager.WakeLock mWakelock;
+    private SoundPool mSoundPool;
+    private int mInCallId;
+    private int mEndCallId;
 
     @SuppressLint("HandlerLeak")
     private Handler mHandler = new Handler() {
@@ -100,12 +105,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 case CHECK_IS_ANSWER:
                     //检查对方是否答应
                     if (!isAnswer) {
-                        finish();
                         mVideoChatManager.onEndCall(mMyId, mChatId);
+                        finishThePage(FINISH);
                     }
-                    break;
-                case FINISH:
-                    finish();
                     break;
                 default:
                     break;
@@ -116,10 +118,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate");
+        Log.d(TAG, "onCreate 10fps");
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         initIntent(getIntent());
         initVideoSettings();
+        initAudio();
         mPlayerView = new VideoChatView(this);
         mPlayerView.setHandler(mHandler);
         volumeParams = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT
@@ -137,9 +140,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         if (pm != null) {
             mWakelock = pm.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_BRIGHT_WAKE_LOCK, LOCK_TAG);
             mWakelock.setReferenceCounted(false);
-            mWakelock.acquire(60 * 1000);
+            mWakelock.acquire(60 * 60 * 1000);
         }
-        initAudio();
     }
 
     /**
@@ -172,15 +174,20 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             currentVolume = mAudioManager.getStreamVolume(AudioManager.STREAM_VOICE_CALL);
         }
         Log.d(TAG, "maxVolume:" + maxVolume + ",currentVolume:" + currentVolume);
-        mAudioManager.requestAudioFocus(focusChangeListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
+        mSoundPool = new SoundPool(2, AudioManager.STREAM_SYSTEM, 0);
+        mInCallId = mSoundPool.load(this, R.raw.video_chat, 0);
+        mEndCallId = mSoundPool.load(this, R.raw.end_call, 0);
+        //play in call sound
+        mSoundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
+            @Override
+            public void onLoadComplete(SoundPool soundPool, int sampleId, int status) {
+                if (sampleId == mEndCallId) {
+                    int result = mSoundPool.play(mInCallId, 1f, 1f, 1, -1, 1);
+                    Log.d(TAG, "play incall :" + result + "  mInCallId :  " + mInCallId + " mEndCallId : " + mEndCallId);
+                }
+            }
+        });
     }
-
-    AudioManager.OnAudioFocusChangeListener focusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
-        @Override
-        public void onAudioFocusChange(int focusChange) {
-            Log.d(TAG, "focusChange : " + focusChange);
-        }
-    };
 
     /**
      * 初始化拨号界面
@@ -269,24 +276,29 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.iv_incall_answer_call:
+                //来电 接听
                 Log.d(TAG, "click inCall answer");
                 mAnswerIv.setEnabled(false);
                 mAnswerIv.setClickable(false);
                 mVideoChatManager.onAnswerCall(mChatId, mRoomToken);
                 break;
             case R.id.iv_incall_end_call:
+                //来电 挂断
                 mVideoChatManager.onEndCall(mMyId, mChatId);
-                mHandler.sendEmptyMessageDelayed(FINISH, 500);
+                finishThePage(FINISH);
                 break;
             case R.id.iv_out_end_call:
+                //拨出 挂断
                 mVideoChatManager.onHangUp(mMyId, mChatId);
-                mHandler.sendEmptyMessageDelayed(FINISH, 500);
+                finishThePage(FINISH);
                 break;
             case R.id.iv_ing_end_call:
+                //正在通话中 挂断
                 mVideoChatManager.onEndCall();
-                mHandler.sendEmptyMessageDelayed(FINISH, 500);
+                finishThePage(FINISH);
                 break;
             case R.id.video_chating:
+                //正在通话
                 if (mIvEndCall.getVisibility() != View.VISIBLE) {
                     mIvEndCall.setVisibility(View.VISIBLE);
                 } else {
@@ -294,6 +306,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 }
                 break;
             case R.id.iv_change_camera:
+                //切换camera
                 Log.d(TAG, "click iv_change_camera");
                 mIvChangeCamera.setClickable(false);
                 mIvChangeCamera.setEnabled(false);
@@ -322,6 +335,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      */
     private void updateRemoteView(SurfaceView remoteView) {
         Log.d(TAG, "updateRemoteView");
+        mSoundPool.pause(mInCallId);
         Settings.Global.putInt(getContentResolver(), "video_status", 2);
         isAnswer = true;
         mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
@@ -356,7 +370,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
 
     @Override
     public void onCallRemove(SurfaceView surfaceView) {
-        finish();
+        finishThePage(FINISH);
     }
 
     @Override
@@ -367,41 +381,40 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         mIvIncallEnd.setEnabled(true);
     }
 
+    /**
+     * 结束页面
+     *
+     * @param finishType 结束类型
+     */
+    private void finishThePage(final int finishType) {
+        if (isFinish) {
+            return;
+        }
+        isFinish = true;
+        //数据库 归零
+        Settings.Global.putInt(getContentResolver(), "video_status", 0);
+        //播放挂断音乐
+        mSoundPool.pause(mInCallId);
+        int result = mSoundPool.play(mEndCallId, 0.5f, 0.5f, 0, 0, 1);
+        Log.d(TAG, "play end call : " + result);
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                //finish 页面
+                if (finishType == FINISH) {
+                    VideoChatActivity.this.finish();
+                } else if (finishType == -1) {
+                    VideoChatActivity.this.onDestroy();
+                }
+            }
+        }, 500);
+    }
+
     @Override
     public void onLoginJc() {
         if (mType == Constant.CALLOUT) {
             mVideoChatManager.call(mMyId, mChatId);
         }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        Log.d(TAG, "onDestroy");
-        mAudioManager.abandonAudioFocus(focusChangeListener);
-        if (mVideoChatManager != null) {
-            mVideoChatManager.destroy();
-            mVideoChatManager = null;
-        }
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        mHandler.removeCallbacksAndMessages(null);
-        if (mRefusalReceiver != null) {
-            unregisterReceiver(mRefusalReceiver);
-        }
-        if (mWakelock != null) {
-            mWakelock.release();
-            mWakelock = null;
-        }
-        Process.killProcess(Process.myPid());
-        System.exit(10);
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        Log.d(TAG, "onPause");
-        Settings.Global.putInt(getContentResolver(), "video_status", 0);
-        mVideoChatManager.pause();
     }
 
     @Override
@@ -442,16 +455,47 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         return true;
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d(TAG, "onPause");
+        Settings.Global.putInt(getContentResolver(), "video_status", 0);
+        mVideoChatManager.pause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "onDestroy");
+        Settings.Global.putInt(getContentResolver(), "video_status", 0);
+        if (mVideoChatManager != null) {
+            mVideoChatManager.destroy();
+            mVideoChatManager = null;
+        }
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        mHandler.removeCallbacksAndMessages(null);
+        if (mRefusalReceiver != null) {
+            unregisterReceiver(mRefusalReceiver);
+        }
+        if (mWakelock != null) {
+            mWakelock.release();
+            mWakelock = null;
+        }
+        mSoundPool.release();
+        Process.killProcess(Process.myPid());
+        System.exit(10);
+    }
+
     class RefusalReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
+            final String action = intent.getAction();
             Log.d(TAG, "onReceive action:" + action);
             if (action != null) {
                 if (action.equals(Constant.REFUSAL_CHAT_ACTION)) {
-                    finish();
+                    finishThePage(FINISH);
                 } else if (action.equals(Constant.ACTION_CLASS_BAGIN)) {
-                    onDestroy();
+                    finishThePage(-1);
                 }
             }
         }

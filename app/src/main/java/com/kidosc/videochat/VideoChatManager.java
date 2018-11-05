@@ -2,6 +2,7 @@ package com.kidosc.videochat;
 
 import android.content.Context;
 import android.os.Handler;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.TextView;
@@ -78,12 +79,15 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 是否50度自动挂断
      */
     private boolean mICheck50d = false;
+
     private boolean mIsAnswered;
+
     private boolean mIsJoinedRoom = false;
 
-    private static final String CALL_OUT = Constant.PROTOCOL + Constant.PROTOCOL_CALL_OUT;
-    private static final String CALL_REFUSAL = Constant.PROTOCOL + Constant.PROTOCOL_CALL_REFUSAL;
-    private static final String CALL_HANGUP = Constant.PROTOCOL + Constant.PROTOCOL_CALL_HANGUP;
+    private String mProtocol = "";
+    private String mCallOut = mProtocol + Constant.PROTOCOL_CALL_OUT;
+    private String mCallRefusal = mProtocol + Constant.PROTOCOL_CALL_REFUSAL;
+    private String mCallHangup = mProtocol + Constant.PROTOCOL_CALL_HANGUP;
 
     private static final String CHILD_ID = "childId";
     private static final String RECEIVER_ID = "receiverId";
@@ -143,6 +147,8 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     public void init(Context context) {
         mContext = context;
         mRequestQueue = Volley.newRequestQueue(context);
+        mProtocol = Settings.Global.getString(context.getContentResolver(), "chataddress");
+        Log.d(TAG, "init context . mProtocol : " + mProtocol);
     }
 
     /**
@@ -238,7 +244,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         }
         Log.d(TAG, "myId " + myId + "  uid " + uid + " , pType : " + pType);
         JSONObject jsonObject = getJsonObject(myId, uid, 0, 0, pType);
-        JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_OUT, jsonObject
+        JsonObjectRequest objectRequest = new JsonObjectRequest(mCallOut, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
@@ -359,7 +365,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         }
         Log.d(TAG, "onEndCall myId : " + myId + " , uid : " + uid + " ...");
         JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, QI_NIU);
-        JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_REFUSAL, jsonObject
+        JsonObjectRequest objectRequest = new JsonObjectRequest(mCallRefusal, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
@@ -388,7 +394,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         }
         Log.d(TAG, "onHangUp myId : " + myId + " , uid : " + uid);
         JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, QI_NIU);
-        JsonObjectRequest objectRequest = new JsonObjectRequest(CALL_HANGUP, jsonObject
+        JsonObjectRequest objectRequest = new JsonObjectRequest(mCallHangup, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
