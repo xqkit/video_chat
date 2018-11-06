@@ -85,9 +85,9 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private boolean mIsJoinedRoom = false;
 
     private String mProtocol = "";
-    private String mCallOut = mProtocol + Constant.PROTOCOL_CALL_OUT;
-    private String mCallRefusal = mProtocol + Constant.PROTOCOL_CALL_REFUSAL;
-    private String mCallHangup = mProtocol + Constant.PROTOCOL_CALL_HANGUP;
+
+//    private String mProtocol = "http://app.enjoykido.com:8801";
+//    private String mProtocol = "http://devcapp.artimen.cn:7001";
 
     private static final String CHILD_ID = "childId";
     private static final String RECEIVER_ID = "receiverId";
@@ -242,9 +242,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         } else {
             pType = QI_NIU;
         }
-        Log.d(TAG, "myId " + myId + "  uid " + uid + " , pType : " + pType);
         JSONObject jsonObject = getJsonObject(myId, uid, 0, 0, pType);
-        JsonObjectRequest objectRequest = new JsonObjectRequest(mCallOut, jsonObject
+        String callOutUrl = mProtocol + Constant.PROTOCOL_CALL_OUT;
+        Log.d(TAG, "myId " + myId + "  uid " + uid + " , pType : " + pType + " , callOutUrl : " + callOutUrl);
+        JsonObjectRequest objectRequest = new JsonObjectRequest(callOutUrl, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
@@ -363,9 +364,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             onEndCall();
             return;
         }
-        Log.d(TAG, "onEndCall myId : " + myId + " , uid : " + uid + " ...");
         JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, QI_NIU);
-        JsonObjectRequest objectRequest = new JsonObjectRequest(mCallRefusal, jsonObject
+        String callRefusalUrl = mProtocol + Constant.PROTOCOL_CALL_REFUSAL;
+        Log.d(TAG, "onEndCall myId : " + myId + " , uid : " + uid + " , callRefusalUrl : " + callRefusalUrl);
+        JsonObjectRequest objectRequest = new JsonObjectRequest(callRefusalUrl, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
@@ -392,9 +394,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             onEndCall();
             return;
         }
-        Log.d(TAG, "onHangUp myId : " + myId + " , uid : " + uid);
         JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, QI_NIU);
-        JsonObjectRequest objectRequest = new JsonObjectRequest(mCallHangup, jsonObject
+        String callHangUpUrl = mProtocol + Constant.PROTOCOL_CALL_HANGUP;
+        Log.d(TAG, "onHangUp myId : " + myId + " , uid : " + uid + " , callHangUpUrl : " + callHangUpUrl);
+        JsonObjectRequest objectRequest = new JsonObjectRequest(callHangUpUrl, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
@@ -529,14 +532,20 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     @Override
     public void onCallItemAdd(JCCallItem jcCallItem) {
+        if (jcCallItem == null) {
+            return;
+        }
         Log.d(TAG, "onCallItemAdd , DisplayName : " + jcCallItem.getDisplayName());
         mCallItem = jcCallItem;
+        if (jcCallItem.getDirection() == JCCall.DIRECTION_IN) {
+            Log.d(TAG, "onCallItemAdd : DIRECTION_IN ");
+            mCallListener.onCallInAdd();
+        } else if (jcCallItem.getDirection() == JCCall.DIRECTION_OUT) {
+            Log.d(TAG, "onCallItemAdd : DIRECTION_OUT");
+            mCallListener.onCallOutAdd();
+        }
         if (jcCallItem.getActive()) {
             mediaDevice.startCameraVideo(JCMediaDevice.RENDER_FULL_SCREEN);
-        }
-        if (mCallItem.getDirection() == JCCall.DIRECTION_IN) {
-            Log.d(TAG, "onCallItemAdd : onCallAdd");
-            mCallListener.onCallAdd();
         }
     }
 

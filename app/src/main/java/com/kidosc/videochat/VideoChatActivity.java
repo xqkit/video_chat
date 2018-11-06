@@ -175,15 +175,20 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         }
         Log.d(TAG, "maxVolume:" + maxVolume + ",currentVolume:" + currentVolume);
         mSoundPool = new SoundPool(2, AudioManager.STREAM_SYSTEM, 0);
-        mInCallId = mSoundPool.load(this, R.raw.video_chat, 0);
-        mEndCallId = mSoundPool.load(this, R.raw.end_call, 0);
+        new Thread() {
+            @Override
+            public void run() {
+                super.run();
+                mInCallId = mSoundPool.load(VideoChatActivity.this, R.raw.video_chat, 0);
+            }
+        }.start();
         //play in call sound
         mSoundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
             @Override
             public void onLoadComplete(SoundPool soundPool, int sampleId, int status) {
-                if (sampleId == mEndCallId) {
-                    int result = mSoundPool.play(mInCallId, 1f, 1f, 1, -1, 1);
-                    Log.d(TAG, "play incall :" + result + "  mInCallId :  " + mInCallId + " mEndCallId : " + mEndCallId);
+                if (sampleId == mInCallId) {
+                    int result = mSoundPool.play(mInCallId, 1f, 1f, 0, -1, 1);
+                    Log.d(TAG, "play incall :" + result + "  mInCallId :  " + mInCallId);
                 }
             }
         });
@@ -334,8 +339,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      * @param remoteView view
      */
     private void updateRemoteView(SurfaceView remoteView) {
+        //停止 声音
+        mSoundPool.stop(mInCallId);
+        boolean unload = mSoundPool.unload(mInCallId);
+        Log.d(TAG, "unload : " + unload);
         Log.d(TAG, "updateRemoteView");
-        mSoundPool.pause(mInCallId);
         Settings.Global.putInt(getContentResolver(), "video_status", 2);
         isAnswer = true;
         mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
@@ -374,11 +382,15 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     }
 
     @Override
-    public void onCallAdd() {
+    public void onCallInAdd() {
         mAnswerIv.setClickable(true);
         mAnswerIv.setEnabled(true);
         mIvIncallEnd.setClickable(true);
         mIvIncallEnd.setEnabled(true);
+    }
+
+    @Override
+    public void onCallOutAdd() {
     }
 
     /**
@@ -394,20 +406,28 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         //数据库 归零
         Settings.Global.putInt(getContentResolver(), "video_status", 0);
         //播放挂断音乐
-        mSoundPool.pause(mInCallId);
-        int result = mSoundPool.play(mEndCallId, 0.5f, 0.5f, 0, 0, 1);
-        Log.d(TAG, "play end call : " + result);
-        mHandler.postDelayed(new Runnable() {
+        mSoundPool.stop(mInCallId);
+        mEndCallId = mSoundPool.load(this, R.raw.end_call, 0);
+        mSoundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
             @Override
-            public void run() {
-                //finish 页面
-                if (finishType == FINISH) {
-                    VideoChatActivity.this.finish();
-                } else if (finishType == -1) {
-                    VideoChatActivity.this.onDestroy();
+            public void onLoadComplete(SoundPool soundPool, int sampleId, int status) {
+                if (sampleId == mEndCallId) {
+                    int result = mSoundPool.play(mEndCallId, 0.5f, 0.5f, 0, 0, 1);
+                    Log.d(TAG, "play end call : " + result);
                 }
+                mHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        //finish 页面
+                        if (finishType == FINISH) {
+                            VideoChatActivity.this.finish();
+                        } else if (finishType == -1) {
+                            VideoChatActivity.this.onDestroy();
+                        }
+                    }
+                }, 500);
             }
-        }, 500);
+        });
     }
 
     @Override

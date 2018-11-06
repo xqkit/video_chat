@@ -23,7 +23,9 @@ public interface CallItemListener {
      */
     void onCallRemove(SurfaceView surfaceView);
 
-    void onCallAdd();
+    void onCallInAdd();
 
     void onLoginJc();
+
+    void onCallOutAdd();
 }
