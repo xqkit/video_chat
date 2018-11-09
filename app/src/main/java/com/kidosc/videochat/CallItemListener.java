@@ -28,4 +28,6 @@ public interface CallItemListener {
     void onLoginJc();
 
     void onCallOutAdd();
+
+    void onLoginFailed();
 }
