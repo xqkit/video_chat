@@ -189,14 +189,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      */
     private void initQnSetting() {
         Log.d(TAG, "initQnSetting");
-        mRTCSetting.setAudioBitrate(100 * 1000).setVideoBitrate(Constant.VIDEO_BITRATE)
-                .setBitrateRange(0, Constant.VIDEO_MAX_BITRATE)
-                .setCameraID(QNRTCSetting.CAMERA_FACING_ID.FRONT).setHWCodecEnabled(Constant.IS_HW_CODEC)
-                .setVideoPreviewFormat(new QNVideoFormat(640, 480, 20))
-                .setVideoEncodeFormat(new QNVideoFormat(Constant.VIDEO_CHAT_WIDTH, Constant.VIDEO_CHAT_HEIGHT
-                        , QNRTCSetting.DEFAULT_FPS));
-        mRTCSetting.setVideoPreviewFormat(new QNVideoFormat(Constant.VIDEO_CHAT_WIDTH
-                , Constant.VIDEO_CHAT_HEIGHT, QNRTCSetting.DEFAULT_FPS));
+        mRTCSetting.setAudioBitrate(14 * 1000)
+                .setVideoBitrate(300 * 1000)
+                .setBitrateRange(0, 400 * 1000)
+                .setCameraID(QNRTCSetting.CAMERA_FACING_ID.FRONT)
+                .setHWCodecEnabled(true)
+                .setVideoPreviewFormat(new QNVideoFormat(320, 240, 15))
+                .setVideoEncodeFormat(new QNVideoFormat(320, 240, 15));
         mRTCManager.addRemoteWindow(mQnRemoteSurfaceView);
         mQnRemoteSurfaceView.setZOrderMediaOverlay(true);
         mRTCManager.setRoomEventListener(this);
@@ -219,15 +218,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                 mCallListener.onLoginFailed();
                 Toast.makeText(mContext, mContext.getString(R.string.login_failed), Toast.LENGTH_SHORT).show();
             }
-        }
-    }
-
-    /**
-     * 退出账号体系
-     */
-    public void logoutVideoChat() {
-        if (client.getState() == JCClient.STATE_LOGINED) {
-            client.logout();
         }
     }
 
@@ -619,6 +609,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             return;
         }
         mRTCManager.subscribe(mChatId);
+        mCallListener.onCallUpdate(null);
     }
 
     @Override
@@ -652,7 +643,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     public QNRemoteSurfaceView onRemoteStreamAdded(String s, boolean b, boolean b1, boolean b2, boolean b3) {
         Log.i(TAG, "onRemoteStreamAdded: user = " + s + ", hasAudio = " + b + ", hasVideo = " + b1
                 + ", isAudioMuted = " + b2 + ", isVideoMuted = " + b3);
-        mCallListener.onCallUpdate(null);
+        //mCallListener.onCallUpdate(null);
         return mQnRemoteSurfaceView;
     }
 

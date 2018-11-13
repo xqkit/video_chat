@@ -274,6 +274,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         Log.d(TAG, "onResume");
         //Settings.Global.putInt(getContentResolver(), "video_status", 1);
         mVideoChatManager.resume();
+        Intent intent = new Intent("com.kidosc.videochat.ischating");
+        sendBroadcast(intent);
     }
 
     @Override
@@ -520,10 +522,13 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             final String action = intent.getAction();
             Log.d(TAG, "onReceive action:" + action);
             VideoChatInfo videoChatInfo = intent.getParcelableExtra(Constant.EXTRA_VIDEO_INFO);
-            Log.d(TAG, "info : " + videoChatInfo.toString() + "\n currentID:" + mChatId);
+            if (videoChatInfo == null) {
+                return;
+            }
             if (!videoChatInfo.senderId.equals(mChatId)) {
                 return;
             }
+            Log.d(TAG, "info : " + videoChatInfo.toString() + "\n currentID:" + mChatId);
             if (Constant.REFUSAL_CHAT_ACTION.equals(action)) {
                 finishThePage(FINISH);
             } else if (Constant.ACTION_CLASS_BAGIN.equals(action)) {
