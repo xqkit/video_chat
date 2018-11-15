@@ -16,7 +16,6 @@
         <activity
             android:name=".VideoChatActivity"
             android:exported="true"
-            android:launchMode="singleTask"
             android:screenOrientation="portrait" />
     </application>
 

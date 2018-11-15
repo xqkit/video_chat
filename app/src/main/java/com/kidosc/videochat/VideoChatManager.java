@@ -83,13 +83,9 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     private boolean mIsAnswered;
 
-    private boolean mIsJoinedRoom = false;
-
     private String mProtocol = "";
 
     private volatile boolean isLoginSuccess = true;
-
-    private volatile boolean hasCalling = false;
 
 //    private String mProtocol = "http://app.enjoykido.com:8801";
 //    private String mProtocol = "http://devcapp.artimen.cn:7001";
@@ -169,6 +165,19 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             QNRTCEnv.init(mContext);
             mRTCManager = new QNRTCManager();
             mRTCSetting = new QNRTCSetting();
+            initQnSetting();
+            if (videoChatInfo.chatType == Constant.INCALL) {
+                mRTCManager.joinRoom(videoChatInfo.roomToken);
+            } else if (videoChatInfo.chatType == Constant.CALLOUT) {
+                int myId = 0;
+                try {
+                    myId = Integer.parseInt(videoChatInfo.myId);
+                } catch (Exception e) {
+                    mCallListener.onCallRemove(null);
+                    Log.e(TAG, "parse id : " + e.getMessage());
+                }
+                call(myId, videoChatInfo.senderId);
+            }
             return;
         }
         //ju phoon
@@ -257,11 +266,9 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                 }
                 jsonObject = jsonObject.optJSONObject("d");
                 String data = jsonObject.optString(DATA);
-                initQnSetting();
                 //uid is room token
                 Log.d(TAG, "roomToken : " + data);
                 mRTCManager.joinRoom(data);
-                mIsJoinedRoom = true;
             }
         }, new Response.ErrorListener() {
             @Override
@@ -275,7 +282,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     /**
      * 接听按钮响应事件
      */
-    public void onAnswerCall(String token) {
+    public void onAnswerCall() {
         if (!Constant.IS_QINIU && mCallItem.getDirection() == JCCall.DIRECTION_IN) {
             mHandler.postDelayed(new Runnable() {
                 @Override
@@ -287,10 +294,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             return;
         }
         if (Constant.IS_QINIU) {
-            initQnSetting();
-            mRTCManager.joinRoom(token);
+            publish();
             mIsAnswered = true;
             mBeginTime = System.currentTimeMillis() / 1000;
+            mCallListener.onCallUpdate(null);
         }
     }
 
@@ -599,6 +606,15 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onJoinedRoom() {
         Log.d(TAG, "onJoinedRoom");
+        if (videoChatInfo.chatType == Constant.CALLOUT) {
+            publish();
+        }
+    }
+
+    /**
+     * 发布视频流
+     */
+    private void publish() {
         mRTCManager.publish();
         mRTCManager.setMirror(true);
     }
@@ -617,8 +633,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onSubscribed(String s) {
         Log.i(TAG, "onSubscribed: userId: " + s);
-        mBeginTime = System.currentTimeMillis() / 1000;
-        mCallListener.onCallUpdate(null);
+        if (videoChatInfo.chatType == Constant.CALLOUT) {
+            mBeginTime = System.currentTimeMillis() / 1000;
+            mCallListener.onCallUpdate(null);
+        }
     }
 
     @Override

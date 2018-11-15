@@ -6,4 +6,5 @@
     <string name="login_failed">login failed</string>
     <string name="monitor_tip">Kido need to have rest! </string>
     <string name="switch_camera_success">switch camera success</string>
+    <string name="no_remote_view">no remote view</string>
 </resources>

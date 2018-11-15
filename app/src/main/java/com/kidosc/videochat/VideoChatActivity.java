@@ -49,6 +49,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private static final int CHECK_IS_ANSWER = 3;
     private static final int FINISH = 4;
     private static final int MONITOR_CHECK = 5;
+    private static final int GG = 6;
 
     private RelativeLayout mInCallRl;
     private RelativeLayout mCallOutRl;
@@ -68,12 +69,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private String mContactPhoto;
     private String mChatName;
     private String mChatId;
-    private String mRoomToken;
     private String mImei;
     private int mMyId;
     private int mType;
 
-    private boolean isAnswer = false;
+    private boolean isConnectingChat = false;
     private volatile boolean isFinish = false;
 
     private int maxVolume;
@@ -109,13 +109,16 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                     break;
                 case CHECK_IS_ANSWER:
                     //检查对方是否答应
-                    if (!isAnswer) {
+                    if (!isConnectingChat) {
                         mVideoChatManager.onEndCall(mMyId, mChatId);
                         finishThePage(FINISH);
                     }
                     break;
                 case MONITOR_CHECK:
                     finishThePage(FINISH);
+                    break;
+                case GG:
+                    finish();
                     break;
                 default:
                     break;
@@ -143,6 +146,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             //初始化拨号界面
             initCallOutUi();
         }
+        mHandler.sendEmptyMessageDelayed(CHECK_IS_ANSWER, 60 * 1000);
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         //亮屏
         if (pm != null) {
@@ -170,7 +174,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         if (!TextUtils.isEmpty(myId)) {
             mMyId = Integer.parseInt(myId);
         }
-        mRoomToken = videoChatInfo.roomToken;
         mImei = videoChatInfo.imei;
         Log.d(TAG, videoChatInfo.toString());
     }
@@ -209,12 +212,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         TextView tvName = (TextView) findViewById(R.id.tv_out_name);
         ImageView bgCallOut = (ImageView) findViewById(R.id.iv_bg_call_out);
         tvName.setText(mChatName);
-        if (Constant.IS_QINIU) {
-            mVideoChatManager.call(mMyId, mChatId);
-        }
         Log.d(TAG, "call out : " + mChatName);
         Utils.setDefaultBackgroundPhoto(mContactPhoto, bgCallOut);
-        mHandler.sendEmptyMessageDelayed(CHECK_IS_ANSWER, 60 * 1000);
     }
 
     /**
@@ -239,7 +238,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             mIvIncallEnd.setEnabled(false);
             mIvIncallEnd.setClickable(false);
         }
-        mHandler.sendEmptyMessageDelayed(CHECK_IS_ANSWER, 60 * 1000);
     }
 
     /**
@@ -248,13 +246,13 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private void initVideoSettings() {
         mVideoChatManager = new VideoChatManager();
         mVideoChatManager.init(this, videoChatInfo);
-        mVideoChatManager.initVideoChat();
         mVideoChatingView = (RelativeLayout) LayoutInflater.from(this).inflate(R.layout.video_chat_ing, null);
         QNRemoteSurfaceView qnRemoteSurfaceView = (QNRemoteSurfaceView) mVideoChatingView.findViewById(R.id.qnr_remote);
         mVideoChatManager.setRemoteView(qnRemoteSurfaceView);
         QNLocalSurfaceView qnLocalSurfaceView = (QNLocalSurfaceView) mVideoChatingView.findViewById(R.id.qnr_local);
         mVideoChatManager.setLocalView(qnLocalSurfaceView);
         mVideoChatManager.setCallListener(this);
+        mVideoChatManager.initVideoChat();
         //注册对方主动挂断广播
         mRefusalReceiver = new RefusalReceiver();
         IntentFilter intentFilter = new IntentFilter();
@@ -278,7 +276,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
-        //Settings.Global.putInt(getContentResolver(), "video_status", 1);
         mVideoChatManager.resume();
         Intent intent = new Intent("com.kidosc.videochat.ischating");
         sendBroadcast(intent);
@@ -292,7 +289,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 Log.d(TAG, "click inCall answer");
                 mAnswerIv.setEnabled(false);
                 mAnswerIv.setClickable(false);
-                mVideoChatManager.onAnswerCall(mRoomToken);
+                mVideoChatManager.onAnswerCall();
                 break;
             case R.id.iv_incall_end_call:
                 //来电 挂断
@@ -346,12 +343,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      * @param remoteView view
      */
     private void updateRemoteView(SurfaceView remoteView) {
+        isConnectingChat = true;
         //停止 声音
         mSoundPool.stop(mInCallId);
         boolean unload = mSoundPool.unload(mInCallId);
-        Log.d(TAG, "unload : " + unload);
-        Log.d(TAG, "updateRemoteView");
-        isAnswer = true;
+        Log.d(TAG, "updateRemoteView, unload : " + unload);
         mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
         mIvChangeCamera = (ImageView) mVideoChatingView.findViewById(R.id.iv_change_camera);
         TextView tvTime = (TextView) mVideoChatingView.findViewById(R.id.tv_ing_time);
@@ -419,17 +415,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         }
         isFinish = true;
         //结束页面
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                //finish 页面
-                if (finishType == FINISH) {
-                    VideoChatActivity.this.finish();
-                } else if (finishType == -1) {
-                    VideoChatActivity.this.onDestroy();
-                }
-            }
-        }, 2000);
+        mHandler.sendEmptyMessageDelayed(GG, 25 * 100);
         //播放挂断音乐
         mSoundPool.stop(mInCallId);
         mEndCallId = mSoundPool.load(this, R.raw.end_call, 0);
@@ -527,6 +513,10 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             final String action = intent.getAction();
             Log.d(TAG, "onReceive action:" + action);
             VideoChatInfo videoChatInfo = intent.getParcelableExtra(Constant.EXTRA_VIDEO_INFO);
+            boolean isClose = intent.getBooleanExtra("closeVideo", false);
+            if (isClose) {
+                finishThePage(-1);
+            }
             if (videoChatInfo == null) {
                 return;
             }
