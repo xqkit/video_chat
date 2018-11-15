@@ -1,5 +1,6 @@
 package com.kidosc.videochat;
 
+import android.net.Uri;
 import android.os.Build;
 
 /**
@@ -19,6 +20,14 @@ public class Constant {
     public static final String JC_APP_KEY = "75e06df8717cb0df36b35097";
     public static final String AUDE = "AUDE";
     public static final boolean IS_QINIU = Build.MODEL.equals(Constant.AUDE);
+
+    /**
+     * settings数据库
+     */
+    private static final String SETTING_TABLE_NAME = "watch_setting";
+    private static final String AUTHORITIES = "com.zeusis.zscontactsprovider";
+    public static final Uri SETTING_URI = Uri.parse("content://" + AUTHORITIES + "/" + SETTING_TABLE_NAME);
+    public static final String WATCH_CALL = "watchCall";
 
     /**
      * 协议地址

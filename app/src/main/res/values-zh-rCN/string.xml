@@ -4,4 +4,6 @@
     <string name="waiting_to_answer">等待对方接受邀请···</string>
     <string name="request_permission">申请权限失败</string>
     <string name="login_failed">登录失败</string>
+    <string name="monitor_tip">Kido需要休息一下喔 </string>
+    <string name="switch_camera_success">切换摄像头成功</string>
 </resources>

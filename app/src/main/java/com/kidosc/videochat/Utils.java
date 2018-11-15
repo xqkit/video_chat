@@ -1,8 +1,13 @@
 package com.kidosc.videochat;
 
+import android.app.Dialog;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
+import android.os.Handler;
+import android.util.DisplayMetrics;
+import android.view.LayoutInflater;
 import android.view.View;
 
 import java.io.FileInputStream;
@@ -59,5 +64,35 @@ public class Utils {
             e.printStackTrace();
             return null;
         }
+    }
+
+    public static void showDialog(Context context, final Handler handler) {
+        final Dialog dialog;
+        View view;
+        DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        int width = metrics.widthPixels;
+        int height = metrics.heightPixels;
+        if (width == 320 && height == 360) {
+            view = LayoutInflater.from(context).inflate(R.layout.launcher_lock_tip_for_kx, null);
+            dialog = new Dialog(context, R.style.DialogStyle);
+        } else {
+            view = LayoutInflater.from(context).inflate(R.layout.launcher_lock_tip, null);
+            dialog = new Dialog(context, R.style.DialogStyle);
+        }
+        dialog.setContentView(view);
+        if (!dialog.isShowing()) {
+            dialog.show();
+        }
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    dialog.dismiss();
+                } catch (RuntimeException e) {
+                    e.printStackTrace();
+                }
+                handler.sendEmptyMessage(5);
+            }
+        }, 2000);
     }
 }

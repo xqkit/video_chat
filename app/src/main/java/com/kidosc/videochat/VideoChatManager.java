@@ -37,6 +37,7 @@ import com.qiniu.droid.rtc.QNRoomState;
 import com.qiniu.droid.rtc.QNStatisticsReport;
 import com.qiniu.droid.rtc.QNVideoFormat;
 import com.qiniu.droid.rtc.model.QNAudioDevice;
+import com.zeusis.videochat.VideoChatInfo;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -112,13 +113,14 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private static final String DATA = "Data";
     private static final int QI_NIU = 0;
     private static final int JU_FENG = 1;
-    private String mChatId = "";
 
     private QNRemoteSurfaceView mQnRemoteSurfaceView;
     private QNLocalSurfaceView mQnLocalSurfaceView;
     private Handler mHandler = new Handler();
     private long mBeginTime = 0;
     private RequestQueue mRequestQueue;
+
+    private VideoChatInfo videoChatInfo = null;
 
     /**
      * 设置监听回调
@@ -148,10 +150,11 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      *
      * @param context context
      */
-    public void init(Context context) {
+    public void init(Context context, VideoChatInfo videoChatInfo) {
         mContext = context;
         mRequestQueue = Volley.newRequestQueue(context);
         mProtocol = Settings.Global.getString(context.getContentResolver(), "chataddress");
+        this.videoChatInfo = videoChatInfo;
         Log.d(TAG, "init context . mProtocol : " + mProtocol);
     }
 
@@ -234,7 +237,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             isCallOk = call.call(uid, true, "kido");
             Log.d(TAG, "isCallOk : " + isCallOk);
             if (!isCallOk) {
-                Toast.makeText(mContext, "拨打失败，对方可能未登录", Toast.LENGTH_SHORT).show();
+                Toast.makeText(mContext, mContext.getString(R.string.login_failed), Toast.LENGTH_SHORT).show();
                 mCallListener.onCallRemove(null);
             }
             pType = JU_FENG;
@@ -272,8 +275,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     /**
      * 接听按钮响应事件
      */
-    public void onAnswerCall(String mChatId, String token) {
-        this.mChatId = mChatId;
+    public void onAnswerCall(String token) {
         if (!Constant.IS_QINIU && mCallItem.getDirection() == JCCall.DIRECTION_IN) {
             mHandler.postDelayed(new Runnable() {
                 @Override
@@ -439,7 +441,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                         textView.setText(time);
                     }
                 });
-
             }
         }, 0, 1000);
     }
@@ -604,17 +605,20 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     @Override
     public void onLocalPublished() {
-        Log.d(TAG, "onLocalPublished");
-        if (TextUtils.isEmpty(mChatId)) {
+        String chatId = videoChatInfo.senderId;
+        Log.d(TAG, "onLocalPublished : " + chatId);
+        if (TextUtils.isEmpty(chatId)) {
+            mCallListener.onCallRemove(null);
             return;
         }
-        mRTCManager.subscribe(mChatId);
-        mCallListener.onCallUpdate(null);
+        mRTCManager.subscribe(chatId);
     }
 
     @Override
     public void onSubscribed(String s) {
         Log.i(TAG, "onSubscribed: userId: " + s);
+        mBeginTime = System.currentTimeMillis() / 1000;
+        mCallListener.onCallUpdate(null);
     }
 
     @Override
@@ -656,7 +660,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onRemoteUserJoined(String s) {
         Log.d(TAG, "onRemoteUserJoined user: " + s);
-        mBeginTime = System.currentTimeMillis() / 1000;
     }
 
     @Override

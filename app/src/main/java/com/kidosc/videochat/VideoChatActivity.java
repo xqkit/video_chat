@@ -6,6 +6,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.ContentObserver;
+import android.database.Cursor;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.os.Build;
@@ -46,6 +48,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private static final int SWITCH_CAMERA = 2;
     private static final int CHECK_IS_ANSWER = 3;
     private static final int FINISH = 4;
+    private static final int MONITOR_CHECK = 5;
 
     private RelativeLayout mInCallRl;
     private RelativeLayout mCallOutRl;
@@ -60,6 +63,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private VideoChatManager mVideoChatManager;
     private RefusalReceiver mRefusalReceiver;
     private AudioManager mAudioManager;
+    private SettingsObserver mObserver;
 
     private String mContactPhoto;
     private String mChatName;
@@ -74,8 +78,10 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
 
     private int maxVolume;
     private int currentVolume;
+    private VideoChatInfo videoChatInfo;
+
     /**
-     * 媒体音量等级 musicVolume:11,systemVolume:5
+     * 电话音量等级
      */
     private int[] mVoiceCallLevelArray = {1, 2, 3, 4, 5};
 
@@ -99,7 +105,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                     //切换camera
                     mIvChangeCamera.setClickable(true);
                     mIvChangeCamera.setEnabled(true);
-                    Toast.makeText(getApplicationContext(), "切换成功", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), getString(R.string.switch_camera_success), Toast.LENGTH_SHORT).show();
                     break;
                 case CHECK_IS_ANSWER:
                     //检查对方是否答应
@@ -107,6 +113,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                         mVideoChatManager.onEndCall(mMyId, mChatId);
                         finishThePage(FINISH);
                     }
+                    break;
+                case MONITOR_CHECK:
+                    finishThePage(FINISH);
                     break;
                 default:
                     break;
@@ -139,8 +148,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         if (pm != null) {
             mWakelock = pm.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_BRIGHT_WAKE_LOCK, LOCK_TAG);
             mWakelock.setReferenceCounted(false);
-            mWakelock.acquire(60 * 60 * 1000);
+            mWakelock.acquire(60 * 1000);
         }
+        mObserver = new SettingsObserver(mHandler);
+        getContentResolver().registerContentObserver(Constant.SETTING_URI, true, mObserver);
+        Log.d(TAG, "onCreate end");
     }
 
     /**
@@ -149,18 +161,18 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      * @param intent intent
      */
     private void initIntent(Intent intent) {
-        VideoChatInfo info = intent.getParcelableExtra(Constant.EXTRA_VIDEO_INFO);
-        mContactPhoto = info.photo;
-        mChatName = info.name;
-        mType = info.chatType;
-        mChatId = info.senderId;
-        String myId = info.myId;
+        videoChatInfo = intent.getParcelableExtra(Constant.EXTRA_VIDEO_INFO);
+        mContactPhoto = videoChatInfo.photo;
+        mChatName = videoChatInfo.name;
+        mType = videoChatInfo.chatType;
+        mChatId = videoChatInfo.senderId;
+        String myId = videoChatInfo.myId;
         if (!TextUtils.isEmpty(myId)) {
             mMyId = Integer.parseInt(myId);
         }
-        mRoomToken = info.roomToken;
-        mImei = info.imei;
-        Log.d(TAG, info.toString());
+        mRoomToken = videoChatInfo.roomToken;
+        mImei = videoChatInfo.imei;
+        Log.d(TAG, videoChatInfo.toString());
     }
 
     /**
@@ -174,13 +186,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         }
         Log.d(TAG, "maxVolume:" + maxVolume + ",currentVolume:" + currentVolume);
         mSoundPool = new SoundPool(2, AudioManager.STREAM_SYSTEM, 0);
-        new Thread() {
-            @Override
-            public void run() {
-                super.run();
-                mInCallId = mSoundPool.load(VideoChatActivity.this, R.raw.video_chat, 0);
-            }
-        }.start();
+        mInCallId = mSoundPool.load(VideoChatActivity.this, R.raw.video_chat, 0);
         //play in call sound
         mSoundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
             @Override
@@ -241,7 +247,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      */
     private void initVideoSettings() {
         mVideoChatManager = new VideoChatManager();
-        mVideoChatManager.init(this);
+        mVideoChatManager.init(this, videoChatInfo);
         mVideoChatManager.initVideoChat();
         mVideoChatingView = (RelativeLayout) LayoutInflater.from(this).inflate(R.layout.video_chat_ing, null);
         QNRemoteSurfaceView qnRemoteSurfaceView = (QNRemoteSurfaceView) mVideoChatingView.findViewById(R.id.qnr_remote);
@@ -286,7 +292,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 Log.d(TAG, "click inCall answer");
                 mAnswerIv.setEnabled(false);
                 mAnswerIv.setClickable(false);
-                mVideoChatManager.onAnswerCall(mChatId, mRoomToken);
+                mVideoChatManager.onAnswerCall(mRoomToken);
                 break;
             case R.id.iv_incall_end_call:
                 //来电 挂断
@@ -345,7 +351,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         boolean unload = mSoundPool.unload(mInCallId);
         Log.d(TAG, "unload : " + unload);
         Log.d(TAG, "updateRemoteView");
-        //Settings.Global.putInt(getContentResolver(), "video_status", 2);
         isAnswer = true;
         mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
         mIvChangeCamera = (ImageView) mVideoChatingView.findViewById(R.id.iv_change_camera);
@@ -413,8 +418,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             return;
         }
         isFinish = true;
-        //数据库 归零
-        //Settings.Global.putInt(getContentResolver(), "video_status", 0);
+        //结束页面
         mHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -489,7 +493,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onPause() {
         super.onPause();
         Log.d(TAG, "onPause");
-        //Settings.Global.putInt(getContentResolver(), "video_status", 0);
         mVideoChatManager.pause();
     }
 
@@ -497,12 +500,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "onDestroy");
-        //Settings.Global.putInt(getContentResolver(), "video_status", 0);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (mVideoChatManager != null) {
             mVideoChatManager.destroy();
             mVideoChatManager = null;
         }
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         mHandler.removeCallbacksAndMessages(null);
         if (mRefusalReceiver != null) {
             unregisterReceiver(mRefusalReceiver);
@@ -512,6 +514,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             mWakelock = null;
         }
         mSoundPool.release();
+        if (mObserver != null) {
+            getContentResolver().unregisterContentObserver(mObserver);
+        }
         Process.killProcess(Process.myPid());
         System.exit(10);
     }
@@ -533,6 +538,40 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 finishThePage(FINISH);
             } else if (Constant.ACTION_CLASS_BAGIN.equals(action)) {
                 finishThePage(-1);
+            }
+        }
+    }
+
+    /**
+     * 监听settings数据库
+     */
+    class SettingsObserver extends ContentObserver {
+
+        /**
+         * Creates a content observer.
+         *
+         * @param handler The handler to run {@link #onChange} on, or null if none.
+         */
+        public SettingsObserver(Handler handler) {
+            super(handler);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            super.onChange(selfChange);
+            int monitor = -1;
+            Cursor cursor = getContentResolver().query(Constant.SETTING_URI, null, null
+                    , null, null);
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    monitor = cursor.getInt(cursor.getColumnIndex(Constant.WATCH_CALL));
+                    Log.d(TAG, "monitor = " + monitor);
+                }
+                cursor.close();
+            }
+            //正在监听
+            if (monitor == 1) {
+                Utils.showDialog(VideoChatActivity.this, mHandler);
             }
         }
     }
