@@ -1,4 +1,4 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.view;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -9,6 +9,8 @@ import android.graphics.RectF;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.view.View;
+
+import com.kidosc.videochat.R;
 
 /**
  * Desc:    调节音量大小

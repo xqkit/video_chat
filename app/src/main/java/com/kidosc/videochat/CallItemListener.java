@@ -17,11 +17,9 @@ public interface CallItemListener {
     void onCallUpdate(SurfaceView surfaceView);
 
     /**
-     * run on main thread
-     *
-     * @param surfaceView surfaceView
+     * remove page
      */
-    void onCallRemove(SurfaceView surfaceView);
+    void onCallRemove();
 
     void onCallInAdd();
 

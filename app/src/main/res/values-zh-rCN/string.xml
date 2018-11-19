@@ -7,4 +7,5 @@
     <string name="monitor_tip">Kido需要休息一下喔 </string>
     <string name="switch_camera_success">切换摄像头成功</string>
     <string name="no_remote_view">没有收到对方的视频流</string>
+    <string name="call_failed">拨叫失败</string>
 </resources>

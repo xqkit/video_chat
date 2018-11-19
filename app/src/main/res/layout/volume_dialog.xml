@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/volume_dialog"
+    android:layout_width="66dp"
+    android:layout_height="66dp"
+    android:background="@drawable/tmo_png_popup_sounds_bg"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <ImageView
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:src="@drawable/tmo_icon_popup_sounds" />
+
+    <com.kidosc.videochat.VolumeView
+        android:id="@+id/volume_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6.5dp" />
+
+</LinearLayout>

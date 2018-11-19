@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.kidosc.videochat.VolumeProgress
+    <com.kidosc.videochat.view.VolumeProgress
         android:id="@+id/volume_progress"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

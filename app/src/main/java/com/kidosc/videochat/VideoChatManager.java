@@ -1,7 +1,9 @@
 package com.kidosc.videochat;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Handler;
+import android.os.Message;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
@@ -56,6 +58,7 @@ import java.util.TimerTask;
 public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, JCClientCallback, QNRoomEventListener {
 
     private static final String TAG = VideoChatManager.class.getSimpleName();
+    private static final int LOGIN_ACCOUNT = 0;
     private JCClient client;
     private JCMediaDevice mediaDevice;
     private JCCall call;
@@ -67,6 +70,11 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private QNRTCManager mRTCManager;
     private QNRTCSetting mRTCSetting;
     public CallItemListener mCallListener;
+    private long mBeginTime = 0;
+    private RequestQueue mRequestQueue;
+
+    private VideoChatInfo videoChatInfo = null;
+    private int mMyId;
 
     /**
      * 是否使用10帧
@@ -85,7 +93,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     private String mProtocol = "";
 
-    private volatile boolean isLoginSuccess = true;
+    private int loginTimes = 0;
 
 //    private String mProtocol = "http://app.enjoykido.com:8801";
 //    private String mProtocol = "http://devcapp.artimen.cn:7001";
@@ -112,32 +120,42 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     private QNRemoteSurfaceView mQnRemoteSurfaceView;
     private QNLocalSurfaceView mQnLocalSurfaceView;
-    private Handler mHandler = new Handler();
-    private long mBeginTime = 0;
-    private RequestQueue mRequestQueue;
 
-    private VideoChatInfo videoChatInfo = null;
+    @SuppressLint("HandlerLeak")
+    private Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            switch (msg.what) {
+                case LOGIN_ACCOUNT:
+                    loginAccount();
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
 
     /**
      * 设置监听回调
      *
      * @param listener listener
      */
-    public void setCallListener(CallItemListener listener) {
+    void setCallListener(CallItemListener listener) {
         mCallListener = listener;
     }
 
     /**
      * 设置七牛 的远程view
      */
-    public void setRemoteView(QNRemoteSurfaceView surfaceView) {
+    void setRemoteView(QNRemoteSurfaceView surfaceView) {
         mQnRemoteSurfaceView = surfaceView;
     }
 
     /**
      * 设置七牛 的本地view
      */
-    public void setLocalView(QNLocalSurfaceView surfaceView) {
+    void setLocalView(QNLocalSurfaceView surfaceView) {
         mQnLocalSurfaceView = surfaceView;
     }
 
@@ -146,18 +164,22 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      *
      * @param context context
      */
-    public void init(Context context, VideoChatInfo videoChatInfo) {
+    void init(Context context, VideoChatInfo videoChatInfo) {
         mContext = context;
         mRequestQueue = Volley.newRequestQueue(context);
         mProtocol = Settings.Global.getString(context.getContentResolver(), "chataddress");
         this.videoChatInfo = videoChatInfo;
+        String myId = videoChatInfo.myId;
+        if (!TextUtils.isEmpty(myId)) {
+            mMyId = Integer.parseInt(myId);
+        }
         Log.d(TAG, "init context . mProtocol : " + mProtocol);
     }
 
     /**
      * 初始化视频聊天的资源sdk
      */
-    public void initVideoChat() {
+    void initVideoChat() {
         if (Constant.IS_QINIU) {
             //qi niu
             Log.d(TAG, "IS_QINIU initVideoChat");
@@ -169,14 +191,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             if (videoChatInfo.chatType == Constant.INCALL) {
                 mRTCManager.joinRoom(videoChatInfo.roomToken);
             } else if (videoChatInfo.chatType == Constant.CALLOUT) {
-                int myId = 0;
-                try {
-                    myId = Integer.parseInt(videoChatInfo.myId);
-                } catch (Exception e) {
-                    mCallListener.onCallRemove(null);
-                    Log.e(TAG, "parse id : " + e.getMessage());
-                }
-                call(myId, videoChatInfo.senderId);
+                call();
             }
             return;
         }
@@ -194,6 +209,11 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         }
         mediaDevice.enableSpeaker(true);
         mediaDevice.startCamera();
+        if (TextUtils.isEmpty(videoChatInfo.imei)) {
+            mCallListener.onCallRemove();
+            return;
+        }
+        loginAccount();
     }
 
     /**
@@ -217,58 +237,114 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     }
 
     /**
-     * 登录菊风账号
+     * 登录账号
+     * 菊风登录
      */
-    public void loginJcChat(String account) {
-        if (TextUtils.isEmpty(account)) {
-            return;
-        }
+    private void loginAccount() {
         if (client.getState() != JCClient.STATE_LOGINED) {
-            isLoginSuccess = client.login(account, "1");
-            Log.d(TAG, "isLogin : " + isLoginSuccess);
-            if (!isLoginSuccess) {
-                mCallListener.onLoginFailed();
+            boolean isLoginSuccess = client.login(videoChatInfo.imei, "1");
+            loginTimes++;
+            Log.d(TAG, "isLogin : " + isLoginSuccess + " times : " + loginTimes);
+            if (!isLoginSuccess && loginTimes > 2) {
                 Toast.makeText(mContext, mContext.getString(R.string.login_failed), Toast.LENGTH_SHORT).show();
+                if (videoChatInfo.chatType == Constant.CALLOUT) {
+                    mCallListener.onCallRemove();
+                } else if (videoChatInfo.chatType == Constant.INCALL) {
+                    sendServerRefusal();
+                }
             }
         }
     }
 
     /**
      * 主动拨号，发起视频聊天
-     *
-     * @param myId 手表的id
-     * @param uid  对方的id
+     * 先走服务器，再走接口
      */
-    public void call(int myId, String uid) {
-        int pType;
-        boolean isCallOk;
+    void call() {
+        //走服务器
+        sendServerCall();
+        //走三方接口
         if (!Constant.IS_QINIU) {
-            isCallOk = call.call(uid, true, "kido");
+            boolean isCallOk = call.call(videoChatInfo.senderId, true, "kido");
             Log.d(TAG, "isCallOk : " + isCallOk);
             if (!isCallOk) {
-                Toast.makeText(mContext, mContext.getString(R.string.login_failed), Toast.LENGTH_SHORT).show();
-                mCallListener.onCallRemove(null);
+                Toast.makeText(mContext, mContext.getString(R.string.call_failed), Toast.LENGTH_SHORT).show();
+                sendServerRefusal();
             }
-            pType = JU_FENG;
-        } else {
-            pType = QI_NIU;
         }
-        JSONObject jsonObject = getJsonObject(myId, uid, 0, 0, pType);
+    }
+
+    /**
+     * 给服务器发送拒接消息
+     * 然后通知activity finish界面
+     */
+    private void sendServerRefusal() {
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 1, Constant.IS_QINIU ? QI_NIU : JU_FENG);
+        String callRefusalUrl = mProtocol + Constant.PROTOCOL_CALL_REFUSAL;
+        Log.d(TAG, "sendServerRefusal : " + callRefusalUrl);
+        JsonObjectRequest objectRequest = new JsonObjectRequest(callRefusalUrl, jsonObject
+                , new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject jsonObject) {
+                Log.d(TAG, "sendServerRefusal onResponse : " + jsonObject.toString());
+                mCallListener.onCallRemove();
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError volleyError) {
+                Log.e(TAG, "sendServerRefusal onErrorResponse:" + volleyError.getMessage());
+                mCallListener.onCallRemove();
+            }
+        });
+        mRequestQueue.add(objectRequest);
+    }
+
+    /**
+     * 给服务器发送取消消息
+     * 然后通知activity finish界面
+     */
+    private void sendServerHangUp() {
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 1, Constant.IS_QINIU ? QI_NIU : JU_FENG);
+        String callHangUpUrl = mProtocol + Constant.PROTOCOL_CALL_HANGUP;
+        Log.d(TAG, "sendServerHangUp , callHangUpUrl : " + callHangUpUrl);
+        JsonObjectRequest objectRequest = new JsonObjectRequest(callHangUpUrl, jsonObject
+                , new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject jsonObject) {
+                Log.d(TAG, "hang up onResponse : " + jsonObject.toString());
+                mCallListener.onCallRemove();
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError volleyError) {
+                Log.e(TAG, "hang up onErrorResponse:" + volleyError.getMessage());
+                mCallListener.onCallRemove();
+            }
+        });
+        mRequestQueue.add(objectRequest);
+    }
+
+    /**
+     * 给服务器发送拨叫消息
+     * 然后通知activity finish界面
+     */
+    private void sendServerCall() {
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 0, Constant.IS_QINIU ? QI_NIU : JU_FENG);
         String callOutUrl = mProtocol + Constant.PROTOCOL_CALL_OUT;
-        Log.d(TAG, "myId " + myId + "  uid " + uid + " , pType : " + pType + " , callOutUrl : " + callOutUrl);
+        Log.d(TAG, "sendServerCall  callOutUrl : " + callOutUrl);
         JsonObjectRequest objectRequest = new JsonObjectRequest(callOutUrl, jsonObject
                 , new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject jsonObject) {
                 Log.d(TAG, "call out onResponse : " + jsonObject.toString());
-                if (!Constant.IS_QINIU) {
-                    return;
+                if (Constant.IS_QINIU) {
+                    //七牛的 接收返回值 token 并加入房间
+                    jsonObject = jsonObject.optJSONObject("d");
+                    String data = jsonObject.optString(DATA);
+                    //uid is room token
+                    Log.d(TAG, "roomToken : " + data);
+                    mRTCManager.joinRoom(data);
                 }
-                jsonObject = jsonObject.optJSONObject("d");
-                String data = jsonObject.optString(DATA);
-                //uid is room token
-                Log.d(TAG, "roomToken : " + data);
-                mRTCManager.joinRoom(data);
             }
         }, new Response.ErrorListener() {
             @Override
@@ -282,7 +358,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     /**
      * 接听按钮响应事件
      */
-    public void onAnswerCall() {
+    void onAnswerCall() {
         if (!Constant.IS_QINIU && mCallItem.getDirection() == JCCall.DIRECTION_IN) {
             mHandler.postDelayed(new Runnable() {
                 @Override
@@ -348,79 +424,29 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     }
 
     /**
-     * 挂断按钮响应事件
+     * 挂断电话
+     *
+     * @param type 3 : 拒接 ; 4: 取消 ; 5 : 正在通话中取消
      */
-    public void onEndCall() {
-        stopCallInfoTimer();
-        if (!Constant.IS_QINIU && mCallItem != null) {
-            boolean isTerm = call.term(mCallItem, 0, "");
-            Log.d(TAG, "isTerm : " + isTerm);
-            return;
+    void endCall(int type) {
+        if (type == Constant.ISCHATING_REFUSE) {
+            stopCallInfoTimer();
         }
         if (Constant.IS_QINIU) {
-            Log.d(TAG, "onEndCall");
+            Log.d(TAG, "QN term type " + type);
+            if (type == Constant.REFUSE || type == Constant.ISCHATING_REFUSE) {
+                sendServerRefusal();
+            } else if (type == Constant.HANGUP) {
+                sendServerHangUp();
+            }
             mRTCManager.leaveRoom();
-        }
-    }
-
-    /**
-     * 挂断 只针对 七牛
-     */
-    public void onEndCall(int myId, String uid) {
-        int pType = QI_NIU;
-        if (!Constant.IS_QINIU) {
-            onEndCall();
-            if (isLoginSuccess) {
-                return;
-            }
-            pType = JU_FENG;
-        }
-        JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, pType);
-        String callRefusalUrl = mProtocol + Constant.PROTOCOL_CALL_REFUSAL;
-        Log.d(TAG, "onEndCall myId : " + myId + " , uid : " + uid + " , callRefusalUrl : " + callRefusalUrl);
-        JsonObjectRequest objectRequest = new JsonObjectRequest(callRefusalUrl, jsonObject
-                , new Response.Listener<JSONObject>() {
-            @Override
-            public void onResponse(JSONObject jsonObject) {
-                Log.d(TAG, "end call onResponse : " + jsonObject.toString());
-            }
-        }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError volleyError) {
-                Log.e(TAG, "end call onErrorResponse:" + volleyError.getMessage());
-            }
-        });
-        mRequestQueue.add(objectRequest);
-        mRTCManager.leaveRoom();
-    }
-
-    /**
-     * 取消通话
-     *
-     * @param myId myId
-     * @param uid  uid
-     */
-    public void onHangUp(int myId, String uid) {
-        if (!Constant.IS_QINIU) {
-            onEndCall();
             return;
         }
-        JSONObject jsonObject = getJsonObject(myId, uid, 0, 1, QI_NIU);
-        String callHangUpUrl = mProtocol + Constant.PROTOCOL_CALL_HANGUP;
-        Log.d(TAG, "onHangUp myId : " + myId + " , uid : " + uid + " , callHangUpUrl : " + callHangUpUrl);
-        JsonObjectRequest objectRequest = new JsonObjectRequest(callHangUpUrl, jsonObject
-                , new Response.Listener<JSONObject>() {
-            @Override
-            public void onResponse(JSONObject jsonObject) {
-                Log.d(TAG, "hang up onResponse : " + jsonObject.toString());
-            }
-        }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError volleyError) {
-                Log.e(TAG, "hang up onErrorResponse:" + volleyError.getMessage());
-            }
-        });
-        mRequestQueue.add(objectRequest);
+        if (mCallItem != null) {
+            boolean isTerm = call.term(mCallItem, 0, "");
+            Log.d(TAG, "JC term : " + isTerm);
+        }
+        mCallListener.onCallRemove();
     }
 
     /**
@@ -504,7 +530,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             pushInfo.initWithText(JCPushTemplate.XIAOMI, client.getUserId(), "Text", "消息", "0");
             push.addPushInfo(pushInfo);
         } else {
-            isLoginSuccess = false;
+            mHandler.sendEmptyMessageDelayed(LOGIN_ACCOUNT, 300);
             mCallListener.onLoginFailed();
         }
     }
@@ -542,7 +568,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         }
         mediaDevice.stopCamera();
         if (call.getCallItems().size() == 0) {
-            mCallListener.onCallRemove(null);
+            mCallListener.onCallRemove();
         }
     }
 
@@ -621,13 +647,8 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     @Override
     public void onLocalPublished() {
-        String chatId = videoChatInfo.senderId;
-        Log.d(TAG, "onLocalPublished : " + chatId);
-        if (TextUtils.isEmpty(chatId)) {
-            mCallListener.onCallRemove(null);
-            return;
-        }
-        mRTCManager.subscribe(chatId);
+        Log.d(TAG, "onLocalPublished ");
+        mRTCManager.subscribe(videoChatInfo.senderId);
     }
 
     @Override
@@ -672,7 +693,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onRemoteStreamRemoved(String s) {
         Log.i(TAG, "onRemoteStreamRemoved : user = " + s);
-        mCallListener.onCallRemove(mQnRemoteSurfaceView);
+        mCallListener.onCallRemove();
     }
 
     @Override
@@ -683,7 +704,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onRemoteUserLeaved(String s) {
         Log.d(TAG, "onRemoteUserLeaved user: " + s);
-        mCallListener.onCallRemove(mQnRemoteSurfaceView);
+        mCallListener.onCallRemove();
     }
 
     @Override
@@ -703,8 +724,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     @Override
     public void onError(int i, String s) {
-        Log.i(TAG, "onError: " + i + " " + s);
+        Log.e(TAG, "onError: " + i + " " + s);
         Toast.makeText(mContext, s, Toast.LENGTH_SHORT).show();
+        if (videoChatInfo.chatType == Constant.INCALL) {
+            sendServerRefusal();
+        } else if (videoChatInfo.chatType == Constant.CALLOUT) {
+            mCallListener.onCallRemove();
+        }
     }
 
     @Override

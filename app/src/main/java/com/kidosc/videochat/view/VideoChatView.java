@@ -1,4 +1,4 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.view;
 
 import android.content.Context;
 import android.os.Handler;
@@ -7,6 +7,9 @@ import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
+
+import com.kidosc.videochat.R;
+import com.kidosc.videochat.view.VolumeProgress;
 
 /**
  * Desc:    视频通话专属view

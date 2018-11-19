@@ -37,4 +37,8 @@ public class Constant {
     public static final String PROTOCOL_CALL_HANGUP = "/Service/VideoCallService.asmx/WHangUpVideoCall";
     public static final int INCALL = 0;
     public static final int CALLOUT = 2;
+
+    public static final int REFUSE = 3;
+    public static final int HANGUP = 4;
+    public static final int ISCHATING_REFUSE = 5;
 }
