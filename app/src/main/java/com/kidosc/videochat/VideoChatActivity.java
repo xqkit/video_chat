@@ -437,6 +437,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "onDestroy");
+        if (isDestroyed()) {
+            return;
+        }
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (mVideoChatManager != null) {
             mVideoChatManager.destroy();

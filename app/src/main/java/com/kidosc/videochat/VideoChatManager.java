@@ -189,7 +189,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             mRTCSetting = new QNRTCSetting();
             initQnSetting();
             if (videoChatInfo.chatType == Constant.INCALL) {
-                mRTCManager.joinRoom(videoChatInfo.roomToken);
             } else if (videoChatInfo.chatType == Constant.CALLOUT) {
                 call();
             }
@@ -370,10 +369,8 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             return;
         }
         if (Constant.IS_QINIU) {
-            publish();
+            mRTCManager.joinRoom(videoChatInfo.roomToken);
             mIsAnswered = true;
-            mBeginTime = System.currentTimeMillis() / 1000;
-            mCallListener.onCallUpdate(null);
         }
     }
 
@@ -632,15 +629,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onJoinedRoom() {
         Log.d(TAG, "onJoinedRoom");
-        if (videoChatInfo.chatType == Constant.CALLOUT) {
-            publish();
-        }
-    }
-
-    /**
-     * 发布视频流
-     */
-    private void publish() {
         mRTCManager.publish();
         mRTCManager.setMirror(true);
     }
@@ -649,6 +637,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     public void onLocalPublished() {
         Log.d(TAG, "onLocalPublished ");
         mRTCManager.subscribe(videoChatInfo.senderId);
+        if (videoChatInfo.chatType == Constant.INCALL) {
+            mBeginTime = System.currentTimeMillis() / 1000;
+            mCallListener.onCallUpdate(null);
+        }
     }
 
     @Override
