@@ -107,6 +107,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                     break;
                 case GG:
                     finish();
+                    onDestroy();
                     break;
                 default:
                     break;
@@ -142,7 +143,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         mObserver = new SettingsObserver(mHandler);
         getContentResolver().registerContentObserver(Constant.SETTING_URI, true, mObserver);
         Log.d(TAG, "onCreate end");
-
     }
 
     /**
@@ -437,9 +437,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "onDestroy");
-        if (isDestroyed()) {
-            return;
-        }
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (mVideoChatManager != null) {
             mVideoChatManager.destroy();

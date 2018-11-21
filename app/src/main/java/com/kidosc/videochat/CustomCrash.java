@@ -2,7 +2,6 @@ package com.kidosc.videochat;
 
 import android.content.Context;
 import android.os.Process;
-import android.provider.Settings;
 import android.util.Log;
 
 /**
@@ -22,7 +21,6 @@ public class CustomCrash implements Thread.UncaughtExceptionHandler {
     @Override
     public void uncaughtException(Thread t, Throwable e) {
         Log.e("VideoChatManager", e.getMessage());
-        Settings.Global.putInt(context.getContentResolver(), "video_chat", 0);
         Process.killProcess(Process.myPid());
         System.exit(10);
     }

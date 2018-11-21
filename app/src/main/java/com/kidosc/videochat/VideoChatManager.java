@@ -252,6 +252,8 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                     sendServerRefusal();
                 }
             }
+        } else if (client.getState() == JCClient.STATE_LOGINED) {
+            call();
         }
     }
 
