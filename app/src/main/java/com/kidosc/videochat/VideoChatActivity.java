@@ -42,7 +42,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
 
     private static final String TAG = "VideoChatManager";
     private static final String LOCK_TAG = "kido_video_chat";
-    private static final int CALL_UPDATE = 0;
     private static final int SWITCH_CAMERA = 2;
     private static final int CHECK_IS_ANSWER = 3;
     private static final int MONITOR_CHECK = 5;
@@ -50,10 +49,13 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
 
     private RelativeLayout mInCallRl;
     private RelativeLayout mCallOutRl;
-    private ImageView mIvEndCall;
+    private ImageView mIvChatingEndCall;
     private ImageView mIvIncallEnd;
     private ImageView mAnswerIv;
     private ImageView mIvChangeCamera;
+    private ImageView mIvOutEndCall;
+    private TextView mTvTime;
+    private TextView mTvTips;
     private RelativeLayout mVideoChatingView;
 
     private VideoChatManager mVideoChatManager;
@@ -68,6 +70,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
 
     private boolean isAnswered = false;
     private volatile boolean isFinish = false;
+    private boolean isPaused = false;
 
     private int maxVolume;
     private int currentVolume;
@@ -86,9 +89,25 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             super.handleMessage(msg);
             Log.d(TAG, "msg.what : " + msg.what);
             switch (msg.what) {
-                case CALL_UPDATE:
-                    //更新远程视频
-                    updateRemoteView((SurfaceView) msg.obj);
+                case Constant.NO_NEED_WAITING:
+                    if (!Constant.IS_QINIU) {
+                        updateRemoteView((SurfaceView) msg.obj);
+                    }
+                    mTvTips.setVisibility(View.GONE);
+                    showWaitView();
+                    break;
+                case Constant.ON_STREAM:
+                    if (Constant.IS_QINIU) {
+                        mTvTips.setVisibility(View.GONE);
+                    } else {
+                        removeWaitView();
+                        updateRemoteView((SurfaceView) msg.obj);
+                        mTvTips.setVisibility(View.GONE);
+                        showWaitView();
+                    }
+                    break;
+                case Constant.WAITING_STREAM:
+                    showWaitView();
                     break;
                 case SWITCH_CAMERA:
                     //切换camera
@@ -103,6 +122,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                     }
                     break;
                 case MONITOR_CHECK:
+                    Log.d(TAG, "正在监听");
                     finishThePage();
                     break;
                 case GG:
@@ -171,6 +191,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         Log.d(TAG, "maxVolume:" + maxVolume + ",currentVolume:" + currentVolume);
         mSoundPool = new SoundPool(2, AudioManager.STREAM_SYSTEM, 0);
         mInCallId = mSoundPool.load(VideoChatActivity.this, R.raw.video_chat, 0);
+        mEndCallId = mSoundPool.load(this, R.raw.end_call, 0);
         //play in call sound
         mSoundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
             @Override
@@ -189,7 +210,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private void initCallOutUi() {
         setContentView(R.layout.video_chat_call_out);
         mCallOutRl = (RelativeLayout) findViewById(R.id.rl_call_out_bg);
-        findViewById(R.id.iv_out_end_call).setOnClickListener(this);
+        mIvOutEndCall = findViewById(R.id.iv_out_end_call);
+        mIvOutEndCall.setOnClickListener(this);
         TextView tvName = (TextView) findViewById(R.id.tv_out_name);
         ImageView bgCallOut = (ImageView) findViewById(R.id.iv_bg_call_out);
         tvName.setText(mChatName);
@@ -232,6 +254,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         mVideoChatManager.setRemoteView(qnRemoteSurfaceView);
         QNLocalSurfaceView qnLocalSurfaceView = (QNLocalSurfaceView) mVideoChatingView.findViewById(R.id.qnr_local);
         mVideoChatManager.setLocalView(qnLocalSurfaceView);
+        //init chating view
+        initChatingView();
+        //set listener
         mVideoChatManager.setCallListener(this);
         mVideoChatManager.initVideoChat();
         //注册对方主动挂断广播
@@ -239,7 +264,22 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Constant.REFUSAL_CHAT_ACTION);
         intentFilter.addAction(Constant.ACTION_CLASS_BAGIN);
+        intentFilter.addAction(Constant.ACTION_TEMP_BAGIN);
         registerReceiver(mRefusalReceiver, intentFilter);
+    }
+
+    private void initChatingView() {
+        mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
+        mIvChangeCamera = (ImageView) mVideoChatingView.findViewById(R.id.iv_change_camera);
+        mTvTime = (TextView) mVideoChatingView.findViewById(R.id.tv_ing_time);
+        if (!Constant.AUDE.equals(Build.MODEL)) {
+            mIvChangeCamera.setVisibility(View.INVISIBLE);
+        } else {
+            mIvChangeCamera.setOnClickListener(this);
+        }
+        mIvChatingEndCall = (ImageView) mVideoChatingView.findViewById(R.id.iv_ing_end_call);
+        mIvChatingEndCall.setOnClickListener(this);
+        mTvTips = mVideoChatingView.findViewById(R.id.tv_tips);
     }
 
     @Override
@@ -253,7 +293,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        isPaused = false;
         mVideoChatManager.resume();
+        mSoundPool.resume(mInCallId);
         Intent intent = new Intent("com.kidosc.videochat.ischating");
         sendBroadcast(intent);
     }
@@ -270,22 +312,31 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 break;
             case R.id.iv_incall_end_call:
                 //来电 挂断
+                Log.d(TAG, "click inCall end");
+                mIvIncallEnd.setEnabled(false);
+                mIvIncallEnd.setClickable(false);
                 mVideoChatManager.endCall(Constant.REFUSE);
                 break;
             case R.id.iv_out_end_call:
                 //拨号 主动挂断
+                Log.d(TAG, "click outCall end");
+                mIvOutEndCall.setEnabled(false);
+                mIvOutEndCall.setClickable(false);
                 mVideoChatManager.endCall(Constant.HANGUP);
                 break;
             case R.id.iv_ing_end_call:
                 //正在通话中 挂断
+                Log.d(TAG, "click chating end call");
+                mIvChatingEndCall.setEnabled(false);
+                mIvChatingEndCall.setClickable(false);
                 mVideoChatManager.endCall(Constant.ISCHATING_REFUSE);
                 break;
             case R.id.video_chating:
                 //正在通话
-                if (mIvEndCall.getVisibility() != View.VISIBLE) {
-                    mIvEndCall.setVisibility(View.VISIBLE);
+                if (mIvChatingEndCall.getVisibility() != View.VISIBLE) {
+                    mIvChatingEndCall.setVisibility(View.VISIBLE);
                 } else {
-                    mIvEndCall.setVisibility(View.INVISIBLE);
+                    mIvChatingEndCall.setVisibility(View.INVISIBLE);
                 }
                 break;
             case R.id.iv_change_camera:
@@ -302,65 +353,91 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     }
 
     @Override
-    public void onCallUpdate(SurfaceView surfaceView) {
-        Log.d(TAG, "onCallUpdate");
-        if (Constant.IS_QINIU) {
-            mHandler.sendEmptyMessage(CALL_UPDATE);
-            return;
+    public void onCallUpdate(SurfaceView surfaceView, int status) {
+        if (!isAnswered) {
+            //已通话 停止 声音
+            mSoundPool.stop(mInCallId);
+            boolean unload = mSoundPool.unload(mInCallId);
+            Log.d(TAG, " unload : " + unload);
+            isAnswered = true;
         }
-        updateRemoteView(surfaceView);
+        switch (status) {
+            case Constant.WAITING_STREAM:
+                Message message = new Message();
+                message.obj = surfaceView;
+                message.what = Constant.WAITING_STREAM;
+                mHandler.sendMessage(message);
+                break;
+            case Constant.ON_STREAM:
+                Message message1 = new Message();
+                message1.obj = surfaceView;
+                message1.what = Constant.ON_STREAM;
+                mHandler.sendMessage(message1);
+                break;
+            case Constant.NO_NEED_WAITING:
+                Message message2 = new Message();
+                message2.obj = surfaceView;
+                message2.what = Constant.NO_NEED_WAITING;
+                mHandler.sendMessage(message2);
+                break;
+            default:
+                break;
+        }
+        mVideoChatManager.startCallInfoTimer(mTvTime);
     }
 
     /**
      * 更新远程view
      *
-     * @param remoteView view
+     * @param surfaceView remote view
      */
-    private void updateRemoteView(SurfaceView remoteView) {
-        isAnswered = true;
-        //停止 声音
-        mSoundPool.stop(mInCallId);
-        boolean unload = mSoundPool.unload(mInCallId);
-        Log.d(TAG, "updateRemoteView, unload : " + unload);
-        mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
-        mIvChangeCamera = (ImageView) mVideoChatingView.findViewById(R.id.iv_change_camera);
-        TextView tvTime = (TextView) mVideoChatingView.findViewById(R.id.tv_ing_time);
-        if (!Constant.AUDE.equals(Build.MODEL)) {
-            mIvChangeCamera.setVisibility(View.INVISIBLE);
-        } else {
-            mIvChangeCamera.setOnClickListener(this);
-        }
-        if (mIvEndCall == null) {
-            mIvEndCall = (ImageView) mVideoChatingView.findViewById(R.id.iv_ing_end_call);
-            mIvEndCall.setOnClickListener(this);
-        }
+    private void updateRemoteView(SurfaceView surfaceView) {
+        Log.d(TAG, "updateRemoteView");
         if (mType == Constant.INCALL) {
             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mInCallRl.getWidth(), mInCallRl.getHeight());
-            if (!Constant.IS_QINIU) {
-                mInCallRl.addView(remoteView, params);
-            }
+            mInCallRl.addView(surfaceView, params);
+        } else if (mType == Constant.CALLOUT) {
+            RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mCallOutRl.getWidth(), mCallOutRl.getHeight());
+            mCallOutRl.addView(surfaceView, params);
+        }
+    }
+
+    private void showWaitView() {
+        Log.d(TAG, "showWaitView");
+        if (mType == Constant.INCALL) {
+            RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mInCallRl.getWidth(), mInCallRl.getHeight());
             mInCallRl.addView(mVideoChatingView, params);
         } else if (mType == Constant.CALLOUT) {
             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mCallOutRl.getWidth(), mCallOutRl.getHeight());
-            if (!Constant.IS_QINIU) {
-                mCallOutRl.addView(remoteView, params);
-            }
             mCallOutRl.addView(mVideoChatingView, params);
         }
-        mVideoChatManager.startCallInfoTimer(tvTime);
+    }
+
+    private void removeWaitView() {
+        Log.d(TAG, "removeWaitView");
+        if (mType == Constant.INCALL) {
+            mInCallRl.removeView(mVideoChatingView);
+        } else if (mType == Constant.CALLOUT) {
+            mCallOutRl.addView(mVideoChatingView);
+        }
     }
 
     @Override
-    public void onCallRemove() {
+    public void onCallRemove(String reason) {
+        Log.d(TAG, "finish page , because:" + reason);
         finishThePage();
     }
 
     @Override
     public void onCallInAdd() {
-        mAnswerIv.setClickable(true);
-        mAnswerIv.setEnabled(true);
-        mIvIncallEnd.setClickable(true);
-        mIvIncallEnd.setEnabled(true);
+        if (mAnswerIv != null) {
+            mAnswerIv.setClickable(true);
+            mAnswerIv.setEnabled(true);
+        }
+        if (mIvIncallEnd != null) {
+            mIvIncallEnd.setClickable(true);
+            mIvIncallEnd.setEnabled(true);
+        }
     }
 
     @Override
@@ -373,6 +450,10 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             mIvIncallEnd.setClickable(true);
             mIvIncallEnd.setEnabled(true);
         }
+    }
+
+    @Override
+    public void onCallWait() {
     }
 
     /**
@@ -388,16 +469,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         mHandler.sendEmptyMessageDelayed(GG, 20 * 100);
         //播放挂断音乐
         mSoundPool.stop(mInCallId);
-        mEndCallId = mSoundPool.load(this, R.raw.end_call, 0);
-        mSoundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
-            @Override
-            public void onLoadComplete(SoundPool soundPool, int sampleId, int status) {
-                if (sampleId == mEndCallId) {
-                    int result = mSoundPool.play(mEndCallId, 1.0f, 1.0f, 0, 0, 1);
-                    Log.d(TAG, "play endcallsound : " + result);
-                }
-            }
-        });
+        int result = mSoundPool.play(mEndCallId, 1.0f, 1.0f, 0, 0, 1);
+        Log.d(TAG, "play endcall sound : " + result);
     }
 
     @Override
@@ -420,7 +493,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             mAudioManager.adjustStreamVolume(AudioManager.STREAM_VOICE_CALL, AudioManager.ADJUST_RAISE
                     , AudioManager.FLAG_PLAY_SOUND | AudioManager.FLAG_VIBRATE);
         }
-        if (mDialog != null) {
+        if (mDialog != null && !isPaused) {
             mDialog.show();
         }
         return true;
@@ -431,6 +504,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         super.onPause();
         Log.d(TAG, "onPause");
         mVideoChatManager.pause();
+        isPaused = true;
+        mSoundPool.pause(mInCallId);
     }
 
     @Override
@@ -468,15 +543,18 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             }
             switch (action) {
                 case Constant.ACTION_CLASS_BAGIN:
+                case Constant.ACTION_TEMP_BAGIN:
                     mVideoChatManager.endCall(mType == Constant.CALLOUT ? Constant.HANGUP : Constant.REFUSE);
                     break;
                 case Constant.REFUSAL_CHAT_ACTION:
                     VideoChatInfo videoChatInfo = intent.getParcelableExtra(Constant.EXTRA_VIDEO_INFO);
                     Log.d(TAG, "info : " + videoChatInfo.toString() + "\n currentID:" + mChatId);
                     if (intent.getBooleanExtra("closeVideo", false)) {
+                        Log.d(TAG, "closeVideo : true");
                         finishThePage();
                     }
                     if (videoChatInfo.senderId.equals(mChatId)) {
+                        Log.d(TAG, "对方主动挂断");
                         finishThePage();
                     }
                     break;

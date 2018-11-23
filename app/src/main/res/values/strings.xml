@@ -8,4 +8,5 @@
     <string name="switch_camera_success">switch camera success</string>
     <string name="no_remote_view">no remote view</string>
     <string name="call_failed">call failed</string>
+    <string name="call_waiting">waiting call ... </string>
 </resources>

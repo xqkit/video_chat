@@ -14,12 +14,12 @@ public interface CallItemListener {
      *
      * @param surfaceView surfaceView
      */
-    void onCallUpdate(SurfaceView surfaceView);
+    void onCallUpdate(SurfaceView surfaceView, int status);
 
     /**
      * remove page
      */
-    void onCallRemove();
+    void onCallRemove(String reason);
 
     void onCallInAdd();
 
@@ -28,4 +28,6 @@ public interface CallItemListener {
     void onCallOutAdd();
 
     void onLoginFailed();
+
+    void onCallWait();
 }

@@ -188,8 +188,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             mRTCManager = new QNRTCManager();
             mRTCSetting = new QNRTCSetting();
             initQnSetting();
-            if (videoChatInfo.chatType == Constant.INCALL) {
-            } else if (videoChatInfo.chatType == Constant.CALLOUT) {
+            if (videoChatInfo.chatType == Constant.CALLOUT) {
                 call();
             }
             return;
@@ -209,7 +208,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         mediaDevice.enableSpeaker(true);
         mediaDevice.startCamera();
         if (TextUtils.isEmpty(videoChatInfo.imei)) {
-            mCallListener.onCallRemove();
+            mCallListener.onCallRemove("imei is null");
             return;
         }
         loginAccount();
@@ -221,8 +220,8 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     private void initQnSetting() {
         Log.d(TAG, "initQnSetting");
         mRTCSetting.setAudioBitrate(14 * 1000)
-                .setVideoBitrate(300 * 1000)
-                .setBitrateRange(0, 400 * 1000)
+                .setVideoBitrate(550 * 1000)
+                .setBitrateRange(0, 600 * 1000)
                 .setCameraID(QNRTCSetting.CAMERA_FACING_ID.FRONT)
                 .setHWCodecEnabled(true)
                 .setVideoPreviewFormat(new QNVideoFormat(320, 240, 15))
@@ -247,7 +246,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             if (!isLoginSuccess && loginTimes > 2) {
                 Toast.makeText(mContext, mContext.getString(R.string.login_failed), Toast.LENGTH_SHORT).show();
                 if (videoChatInfo.chatType == Constant.CALLOUT) {
-                    mCallListener.onCallRemove();
+                    mCallListener.onCallRemove("jufeng login failed , rather 3 times");
                 } else if (videoChatInfo.chatType == Constant.INCALL) {
                     sendServerRefusal();
                 }
@@ -288,13 +287,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             @Override
             public void onResponse(JSONObject jsonObject) {
                 Log.d(TAG, "sendServerRefusal onResponse : " + jsonObject.toString());
-                mCallListener.onCallRemove();
+                mCallListener.onCallRemove("refusal,1");
             }
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError volleyError) {
                 Log.e(TAG, "sendServerRefusal onErrorResponse:" + volleyError.getMessage());
-                mCallListener.onCallRemove();
+                mCallListener.onCallRemove("refusal,0");
             }
         });
         mRequestQueue.add(objectRequest);
@@ -313,13 +312,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             @Override
             public void onResponse(JSONObject jsonObject) {
                 Log.d(TAG, "hang up onResponse : " + jsonObject.toString());
-                mCallListener.onCallRemove();
+                mCallListener.onCallRemove("hangup,1");
             }
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError volleyError) {
                 Log.e(TAG, "hang up onErrorResponse:" + volleyError.getMessage());
-                mCallListener.onCallRemove();
+                mCallListener.onCallRemove("hangup,0");
             }
         });
         mRequestQueue.add(objectRequest);
@@ -360,19 +359,23 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 接听按钮响应事件
      */
     void onAnswerCall() {
+        mBeginTime = System.currentTimeMillis() / 1000;
         if (!Constant.IS_QINIU && mCallItem.getDirection() == JCCall.DIRECTION_IN) {
-            mHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    mIsAnswered = call.answer(mCallItem, true);
-                    Log.d(TAG, "onAnswerCall answer : " + mIsAnswered);
-                }
-            }, 500);
+//            mHandler.postDelayed(new Runnable() {
+//                @Override
+//                public void run() {
+            mIsAnswered = call.answer(mCallItem, true);
+            mCallListener.onCallUpdate(null, Constant.WAITING_STREAM);
+            Log.d(TAG, "onAnswerCall answer : " + mIsAnswered);
+//                }
+//            }, 500);
             return;
         }
         if (Constant.IS_QINIU) {
             mRTCManager.joinRoom(videoChatInfo.roomToken);
             mIsAnswered = true;
+            //mBeginTime = System.currentTimeMillis() / 1000;
+            mCallListener.onCallUpdate(null, Constant.WAITING_STREAM);
         }
     }
 
@@ -445,7 +448,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             boolean isTerm = call.term(mCallItem, 0, "");
             Log.d(TAG, "JC term : " + isTerm);
         }
-        mCallListener.onCallRemove();
+        mCallListener.onCallRemove("endcall,jufeng");
     }
 
     /**
@@ -465,9 +468,9 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                 textView.post(new Runnable() {
                     @Override
                     public void run() {
-                        if (!Constant.IS_QINIU && mCallItem != null) {
+                        /*if (!Constant.IS_QINIU && mCallItem != null) {
                             mBeginTime = mCallItem.getTalkingBeginTime();
-                        }
+                        }*/
                         long seconds = System.currentTimeMillis() / 1000 - mBeginTime;
                         String time = String.format(Locale.getDefault(), "%02d:%02d", seconds / 60, seconds % 60);
                         textView.setText(time);
@@ -567,7 +570,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         }
         mediaDevice.stopCamera();
         if (call.getCallItems().size() == 0) {
-            mCallListener.onCallRemove();
+            mCallListener.onCallRemove("jufeng item remove");
         }
     }
 
@@ -597,9 +600,9 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                 if (mRemote == null) {
                     Log.d(TAG, "onCallItemUpdate remote");
                     mRemote = mediaDevice.startVideo(jcCallItem.getRenderId(), JCMediaDevice.RENDER_FULL_SCREEN);
-                    if (mCallListener != null) {
-                        mCallListener.onCallUpdate(mRemote.getVideoView());
-                    }
+                    mBeginTime = System.currentTimeMillis() / 1000;
+                    mCallListener.onCallUpdate(mRemote.getVideoView(), videoChatInfo.chatType == Constant.CALLOUT
+                            ? Constant.NO_NEED_WAITING : Constant.ON_STREAM);
                 }
             }
         }
@@ -639,19 +642,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     public void onLocalPublished() {
         Log.d(TAG, "onLocalPublished ");
         mRTCManager.subscribe(videoChatInfo.senderId);
-        if (videoChatInfo.chatType == Constant.INCALL) {
-            mBeginTime = System.currentTimeMillis() / 1000;
-            mCallListener.onCallUpdate(null);
-        }
     }
 
     @Override
     public void onSubscribed(String s) {
         Log.i(TAG, "onSubscribed: userId: " + s);
-        if (videoChatInfo.chatType == Constant.CALLOUT) {
-            mBeginTime = System.currentTimeMillis() / 1000;
-            mCallListener.onCallUpdate(null);
-        }
+        mBeginTime = System.currentTimeMillis() / 1000;
+        mCallListener.onCallUpdate(null, videoChatInfo.chatType == Constant.CALLOUT ? Constant.NO_NEED_WAITING : Constant.ON_STREAM);
     }
 
     @Override
@@ -680,14 +677,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     public QNRemoteSurfaceView onRemoteStreamAdded(String s, boolean b, boolean b1, boolean b2, boolean b3) {
         Log.i(TAG, "onRemoteStreamAdded: user = " + s + ", hasAudio = " + b + ", hasVideo = " + b1
                 + ", isAudioMuted = " + b2 + ", isVideoMuted = " + b3);
-        //mCallListener.onCallUpdate(null);
         return mQnRemoteSurfaceView;
     }
 
     @Override
     public void onRemoteStreamRemoved(String s) {
         Log.i(TAG, "onRemoteStreamRemoved : user = " + s);
-        mCallListener.onCallRemove();
+        //mCallListener.onCallRemove();
     }
 
     @Override
@@ -698,12 +694,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     @Override
     public void onRemoteUserLeaved(String s) {
         Log.d(TAG, "onRemoteUserLeaved user: " + s);
-        mCallListener.onCallRemove();
+        mCallListener.onCallRemove(s + " leaved");
     }
 
     @Override
     public void onRemoteUnpublished(String s) {
         Log.d(TAG, "onRemoteUnpublished uid : " + s);
+        mCallListener.onCallRemove(s + " unPublished");
     }
 
     @Override
@@ -723,7 +720,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         if (videoChatInfo.chatType == Constant.INCALL) {
             sendServerRefusal();
         } else if (videoChatInfo.chatType == Constant.CALLOUT) {
-            mCallListener.onCallRemove();
+            mCallListener.onCallRemove("jufeng error : " + s);
         }
     }
 

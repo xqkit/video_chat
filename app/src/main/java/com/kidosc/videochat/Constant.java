@@ -16,6 +16,7 @@ public class Constant {
     public static final String REFUSAL_CHAT_ACTION = "com.kidosc.videochat.refusal";
     public static final String EXTRA_VIDEO_INFO = "ExtraVideoInfo";
     public static final String ACTION_CLASS_BAGIN = "com.zeusis.socket.class.ban.bagin";
+    public static final String ACTION_TEMP_BAGIN = "com.kidosc.videochat.finish";
 
     public static final String JC_APP_KEY = "75e06df8717cb0df36b35097";
     public static final String AUDE = "AUDE";
@@ -41,4 +42,7 @@ public class Constant {
     public static final int REFUSE = 3;
     public static final int HANGUP = 4;
     public static final int ISCHATING_REFUSE = 5;
+    public static final int WAITING_STREAM = 0;
+    public static final int ON_STREAM = 1;
+    public static final int NO_NEED_WAITING = 7;
 }
