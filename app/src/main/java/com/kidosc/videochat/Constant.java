@@ -20,7 +20,7 @@ public class Constant {
 
     public static final String JC_APP_KEY = "75e06df8717cb0df36b35097";
     public static final String AUDE = "AUDE";
-    public static final boolean IS_QINIU = Build.MODEL.equals(Constant.AUDE);
+    public static final boolean IS_QINIU = Build.MODEL.contains(Constant.AUDE) || Build.MODEL.contains("Kido X3");
 
     /**
      * settings数据库
