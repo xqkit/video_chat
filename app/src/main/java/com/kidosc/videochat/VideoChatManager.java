@@ -180,9 +180,9 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 初始化视频聊天的资源sdk
      */
     void initVideoChat() {
-        if (Constant.IS_QINIU) {
+        if (Constant.IS_AUDE) {
             //qi niu
-            Log.d(TAG, "IS_QINIU initVideoChat");
+            Log.d(TAG, "IS_AUDE initVideoChat");
             QNRTCEnv.setLogLevel(QNLogLevel.INFO);
             QNRTCEnv.init(mContext);
             mRTCManager = new QNRTCManager();
@@ -264,7 +264,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         //走服务器
         sendServerCall();
         //走三方接口
-        if (!Constant.IS_QINIU) {
+        if (!Constant.IS_AUDE) {
             boolean isCallOk = call.call(videoChatInfo.senderId, true, "kido");
             Log.d(TAG, "isCallOk : " + isCallOk);
             if (!isCallOk) {
@@ -279,7 +279,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 然后通知activity finish界面
      */
     private void sendServerRefusal() {
-        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 1, Constant.IS_QINIU ? QI_NIU : JU_FENG);
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 1, Constant.IS_AUDE ? QI_NIU : JU_FENG);
         String callRefusalUrl = mProtocol + Constant.PROTOCOL_CALL_REFUSAL;
         Log.d(TAG, "sendServerRefusal : " + callRefusalUrl);
         JsonObjectRequest objectRequest = new JsonObjectRequest(callRefusalUrl, jsonObject
@@ -304,7 +304,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 然后通知activity finish界面
      */
     private void sendServerHangUp() {
-        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 1, Constant.IS_QINIU ? QI_NIU : JU_FENG);
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 1, Constant.IS_AUDE ? QI_NIU : JU_FENG);
         String callHangUpUrl = mProtocol + Constant.PROTOCOL_CALL_HANGUP;
         Log.d(TAG, "sendServerHangUp , callHangUpUrl : " + callHangUpUrl);
         JsonObjectRequest objectRequest = new JsonObjectRequest(callHangUpUrl, jsonObject
@@ -329,7 +329,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 然后通知activity finish界面
      */
     private void sendServerCall() {
-        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 0, Constant.IS_QINIU ? QI_NIU : JU_FENG);
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 0, Constant.IS_AUDE ? QI_NIU : JU_FENG);
         String callOutUrl = mProtocol + Constant.PROTOCOL_CALL_OUT;
         Log.d(TAG, "sendServerCall  callOutUrl : " + callOutUrl);
         JsonObjectRequest objectRequest = new JsonObjectRequest(callOutUrl, jsonObject
@@ -337,7 +337,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             @Override
             public void onResponse(JSONObject jsonObject) {
                 Log.d(TAG, "call out onResponse : " + jsonObject.toString());
-                if (Constant.IS_QINIU) {
+                if (Constant.IS_AUDE) {
                     //七牛的 接收返回值 token 并加入房间
                     jsonObject = jsonObject.optJSONObject("d");
                     String data = jsonObject.optString(DATA);
@@ -360,7 +360,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      */
     void onAnswerCall() {
         mBeginTime = System.currentTimeMillis() / 1000;
-        if (!Constant.IS_QINIU && mCallItem.getDirection() == JCCall.DIRECTION_IN) {
+        if (!Constant.IS_AUDE && mCallItem.getDirection() == JCCall.DIRECTION_IN) {
 //            mHandler.postDelayed(new Runnable() {
 //                @Override
 //                public void run() {
@@ -371,7 +371,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 //            }, 500);
             return;
         }
-        if (Constant.IS_QINIU) {
+        if (Constant.IS_AUDE) {
             mRTCManager.joinRoom(videoChatInfo.roomToken);
             mIsAnswered = true;
             //mBeginTime = System.currentTimeMillis() / 1000;
@@ -411,12 +411,12 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 退出应用时，释放资源
      */
     public void destroy() {
-        if (Constant.IS_QINIU && mRTCManager != null) {
+        if (Constant.IS_AUDE && mRTCManager != null) {
             mRTCManager.leaveRoom();
             mRTCManager.destroy();
             return;
         }
-        if (!Constant.IS_QINIU && mCallItem != null) {
+        if (!Constant.IS_AUDE && mCallItem != null) {
             boolean isTerm = call.term(mCallItem, 0, "");
             Log.d(TAG, "destroy isTerm : " + isTerm);
         }
@@ -434,7 +434,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         if (type == Constant.ISCHATING_REFUSE) {
             stopCallInfoTimer();
         }
-        if (Constant.IS_QINIU) {
+        if (Constant.IS_AUDE) {
             Log.d(TAG, "QN term type " + type);
             if (type == Constant.REFUSE || type == Constant.ISCHATING_REFUSE) {
                 sendServerRefusal();
@@ -468,7 +468,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                 textView.post(new Runnable() {
                     @Override
                     public void run() {
-                        /*if (!Constant.IS_QINIU && mCallItem != null) {
+                        /*if (!Constant.IS_AUDE && mCallItem != null) {
                             mBeginTime = mCallItem.getTalkingBeginTime();
                         }*/
                         long seconds = System.currentTimeMillis() / 1000 - mBeginTime;
@@ -495,7 +495,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 切换摄像头
      */
     public void switchCamera() {
-        if (Constant.IS_QINIU) {
+        if (Constant.IS_AUDE) {
             mRTCManager.switchCamera(new QNCameraSwitchResultCallback() {
                 @Override
                 public void onCameraSwitchDone(boolean b) {
@@ -609,13 +609,13 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     }
 
     public void pause() {
-        if (!Constant.IS_QINIU) {
+        if (!Constant.IS_AUDE) {
             //mediaDevice.enableSpeaker(false);
         }
     }
 
     public void resume() {
-        if (!Constant.IS_QINIU && mediaDevice != null) {
+        if (!Constant.IS_AUDE && mediaDevice != null) {
             //mediaDevice.enableSpeaker(true);
         }
     }

@@ -10,7 +10,6 @@ import android.database.ContentObserver;
 import android.database.Cursor;
 import android.media.AudioManager;
 import android.media.SoundPool;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -90,14 +89,14 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             Log.d(TAG, "msg.what : " + msg.what);
             switch (msg.what) {
                 case Constant.NO_NEED_WAITING:
-                    if (!Constant.IS_QINIU) {
+                    if (!Constant.IS_AUDE) {
                         updateRemoteView((SurfaceView) msg.obj);
                     }
                     mTvTips.setVisibility(View.GONE);
                     showWaitView();
                     break;
                 case Constant.ON_STREAM:
-                    if (Constant.IS_QINIU) {
+                    if (Constant.IS_AUDE) {
                         mTvTips.setVisibility(View.GONE);
                     } else {
                         removeWaitView();
@@ -234,7 +233,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         TextView tvName = (TextView) findViewById(R.id.tv_incall_name);
         tvName.setText(mChatName);
         Log.d(TAG, "call in : " + mChatName);
-        if (!Constant.IS_QINIU) {
+        if (!Constant.IS_AUDE) {
             //一开始 接听界面是假的 ，按钮先屏蔽
             mAnswerIv.setEnabled(false);
             mAnswerIv.setClickable(false);
@@ -272,7 +271,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
         mIvChangeCamera = (ImageView) mVideoChatingView.findViewById(R.id.iv_change_camera);
         mTvTime = (TextView) mVideoChatingView.findViewById(R.id.tv_ing_time);
-        if (!Constant.AUDE.equals(Build.MODEL)) {
+        if (!Constant.IS_AUDE) {
             mIvChangeCamera.setVisibility(View.INVISIBLE);
         } else {
             mIvChangeCamera.setOnClickListener(this);
