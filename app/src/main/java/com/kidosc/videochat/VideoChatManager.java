@@ -26,6 +26,24 @@ import com.juphoon.cloud.JCMediaDeviceVideoCanvas;
 import com.juphoon.cloud.JCPush;
 import com.juphoon.cloud.JCPushTemplate;
 import com.justalk.cloud.zmf.ZmfVideo;
+import com.netease.nimlib.sdk.NIMClient;
+import com.netease.nimlib.sdk.Observer;
+import com.netease.nimlib.sdk.RequestCallback;
+import com.netease.nimlib.sdk.auth.AuthService;
+import com.netease.nimlib.sdk.auth.LoginInfo;
+import com.netease.nimlib.sdk.avchat.AVChatCallback;
+import com.netease.nimlib.sdk.avchat.AVChatManager;
+import com.netease.nimlib.sdk.avchat.constant.AVChatEventType;
+import com.netease.nimlib.sdk.avchat.constant.AVChatType;
+import com.netease.nimlib.sdk.avchat.constant.AVChatVideoScalingType;
+import com.netease.nimlib.sdk.avchat.model.AVChatCalleeAckEvent;
+import com.netease.nimlib.sdk.avchat.model.AVChatCameraCapturer;
+import com.netease.nimlib.sdk.avchat.model.AVChatCommonEvent;
+import com.netease.nimlib.sdk.avchat.model.AVChatData;
+import com.netease.nimlib.sdk.avchat.model.AVChatNotifyOption;
+import com.netease.nimlib.sdk.avchat.model.AVChatParameters;
+import com.netease.nimlib.sdk.avchat.model.AVChatVideoCapturerFactory;
+import com.netease.nrtc.video.render.IVideoRender;
 import com.qiniu.droid.rtc.QNCameraSwitchResultCallback;
 import com.qiniu.droid.rtc.QNLocalSurfaceView;
 import com.qiniu.droid.rtc.QNLogLevel;
@@ -46,6 +64,7 @@ import org.json.JSONObject;
 
 import java.nio.ByteBuffer;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -120,6 +139,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
 
     private QNRemoteSurfaceView mQnRemoteSurfaceView;
     private QNLocalSurfaceView mQnLocalSurfaceView;
+    private AVChatCameraCapturer mVideoCapturer;
 
     @SuppressLint("HandlerLeak")
     private Handler mHandler = new Handler() {
@@ -135,6 +155,10 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             }
         }
     };
+    private IVideoRender mRemoteTv;
+    private IVideoRender mLocalTv;
+    private AVChatData avChatData;
+    private AVChatNotifyOption mNotifyOption;
 
     /**
      * 设置监听回调
@@ -159,12 +183,20 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         mQnLocalSurfaceView = surfaceView;
     }
 
+    void setIMRemoteView(IVideoRender textureViewRenderer) {
+        this.mRemoteTv = textureViewRenderer;
+    }
+
+    void setIMLocalView(IVideoRender textureViewRenderer) {
+        this.mLocalTv = textureViewRenderer;
+    }
+
     /**
      * 初始化chatManager类
      *
      * @param context context
      */
-    void init(Context context, VideoChatInfo videoChatInfo) {
+    void init(Context context, VideoChatInfo videoChatInfo, String clientId, String clientToken) {
         mContext = context;
         mRequestQueue = Volley.newRequestQueue(context);
         mProtocol = Settings.Global.getString(context.getContentResolver(), "chataddress");
@@ -174,6 +206,26 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             mMyId = Integer.parseInt(myId);
         }
         Log.d(TAG, "init context . mProtocol : " + mProtocol);
+        if (Constant.IS_C4) {
+            Log.d(TAG, "clientId " + clientId + " clientToken " + clientToken);
+            NIMClient.getService(AuthService.class).login(new LoginInfo(clientId, clientToken)).setCallback
+                    (new RequestCallback() {
+                        @Override
+                        public void onSuccess(Object o) {
+                            Log.d(TAG, "login onSuccess");
+                        }
+
+                        @Override
+                        public void onFailed(int i) {
+                            Log.d(TAG, "login onFailed " + i);
+                        }
+
+                        @Override
+                        public void onException(Throwable throwable) {
+                            Log.d(TAG, "login onException " + throwable);
+                        }
+                    });
+        }
     }
 
     /**
@@ -193,11 +245,39 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             }
             return;
         }
+        //net ease im
+        if (Constant.IS_C4) {
+            mNotifyOption = new AVChatNotifyOption();
+            //附加字段
+            mNotifyOption.extendMessage = "extra_data";
+            //默认forceKeepCalling为true，开发者如果不需要离线持续呼叫功能可以将forceKeepCalling设为false
+            mNotifyOption.forceKeepCalling = false;
+            //打开Rtc模块
+            if (AVChatManager.getInstance().enableRtc()) {
+                Log.d(TAG, "初始化Rtc成功");
+            } else {
+                Log.d(TAG, "初始化Rtc失败");
+            }
+            //this.callingState = (callTypeEnum == AVChatType.VIDEO ? CallStateEnum.VIDEO : CallStateEnum.AUDIO);
+            AVChatParameters avChatParameters = new AVChatParameters();
+            avChatParameters.set(AVChatParameters.KEY_VIDEO_ROTATE_IN_RENDING, false);
+            avChatParameters.set(AVChatParameters.KEY_DEVICE_DEFAULT_ROTATION, 0);
+            avChatParameters.set(AVChatParameters.KEY_DEVICE_ROTATION_FIXED_OFFSET, 0);
+            //设置自己需要的可选参数
+            AVChatManager.getInstance().setParameters(avChatParameters);
+            // state observer
+            registerObserves(true);
+            if (videoChatInfo.chatType == Constant.CALLOUT) {
+                outGoingCalling(videoChatInfo.senderId, AVChatType.VIDEO);
+            }
+            return;
+        }
         //ju phoon
         client = JCClient.create(mContext, Constant.JC_APP_KEY, this, null);
         mediaDevice = JCMediaDevice.create(client, this);
         call = JCCall.create(client, mediaDevice, this);
         mediaDevice.setWatchMode(true);
+        ZmfVideo.screenOrientation(0);
         ZmfVideo.captureListenRotation(0, 0);
         ZmfVideo.renderListenRotation(0, 0);
         if (mCheck10) {
@@ -212,6 +292,145 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             return;
         }
         loginAccount();
+    }
+
+    private void registerObserves(boolean register) {
+        AVChatManager.getInstance().observeAVChatState(stateObserver, register);
+        AVChatManager.getInstance().observeHangUpNotification(callHangUpObserver, register);
+        AVChatManager.getInstance().observeCalleeAckNotification(callAckObserver, register);
+    }
+
+    private SimpleAVChatStateObserver stateObserver = new SimpleAVChatStateObserver() {
+        @Override
+        public void onJoinedChannel(int code, String audioFile, String videoFile, int i) {
+            Log.d(TAG, "onJoinedChannel code " + code);
+            if (code == 200) {
+//                onJoinRoomSuccess();
+            } else {
+//                onJoinRoomFailed(code, null);
+            }
+        }
+
+        @Override
+        public void onUserJoined(String account) {
+//            onAVChatUserJoined(account);
+            Log.d(TAG, "onUserJoined " + account);
+            AVChatManager.getInstance().setupRemoteVideoRender(account, mRemoteTv, true, AVChatVideoScalingType.SCALE_ASPECT_FIT);
+            mBeginTime = System.currentTimeMillis() / 1000;
+            mCallListener.onCallUpdate(null, videoChatInfo.chatType == Constant.CALLOUT ? Constant.NO_NEED_WAITING : Constant.ON_STREAM);
+        }
+
+        @Override
+        public void onUserLeave(String account, int event) {
+//            onAVChatUserLeave(account);
+            Log.d(TAG, "onUserLeave " + account + " event : " + event);
+            mCallListener.onCallRemove("onUserLeave:" + account + " event " + event);
+        }
+
+        @Override
+        public void onReportSpeaker(Map<String, Integer> speakers, int mixedEnergy) {
+//            onAudioVolume(speakers);
+            Log.d(TAG, "onReportSpeaker");
+        }
+    };
+
+    private Observer<AVChatCommonEvent> callHangUpObserver = new Observer<AVChatCommonEvent>() {
+        @Override
+        public void onEvent(AVChatCommonEvent avChatCommonEvent) {
+            /*if (avChatData != null && avChatData.getChatId() == avChatHangUpInfo.getChatId()) {
+                avChatController.onHangUp(AVChatExitCode.HANGUP);
+                cancelCallingNotifier();
+                // 如果是incoming call主叫方挂断，那么通知栏有通知
+                if (mIsInComingCall && !isCallEstablished) {
+                    activeMissCallNotifier();
+                }
+            }*/
+            Log.d(TAG, "callHangUp : " + avChatCommonEvent.getChatId());
+            mCallListener.onCallRemove("he hang up");
+        }
+    };
+
+    Observer<Integer> timeoutObserver = new Observer<Integer>() {
+        @Override
+        public void onEvent(Integer integer) {
+            Log.d(TAG, "timeoutObserver : " + integer);
+            /*avChatController.hangUp(AVChatExitCode.CANCEL);
+
+            // 来电超时，自己未接听
+            if (mIsInComingCall) {
+                activeMissCallNotifier();
+            }
+
+            finish();*/
+        }
+    };
+
+
+    private Observer<AVChatCalleeAckEvent> callAckObserver = new Observer<AVChatCalleeAckEvent>() {
+        @Override
+        public void onEvent(AVChatCalleeAckEvent ackInfo) {
+            if (ackInfo.getEvent() == AVChatEventType.CALLEE_ACK_REJECT) {
+                Log.d(TAG, "CALLEE_ACK_REJECT : " + ackInfo.getChatId());
+                mCallListener.onCallRemove("CALLEE_ACK_REJECT");
+            }
+            /*if (info.getChatId() == ackInfo.getChatId()) {
+                AVChatSoundPlayer.instance().stop();
+
+                if (ackInfo.getEvent() == AVChatEventType.CALLEE_ACK_BUSY) {
+                    AVChatSoundPlayer.instance().play(AVChatSoundPlayer.RingerTypeEnum.PEER_BUSY);
+                    avChatController.onHangUp(AVChatExitCode.PEER_BUSY);
+                } else if (ackInfo.getEvent() == AVChatEventType.CALLEE_ACK_REJECT) {
+                    avChatController.onHangUp(AVChatExitCode.REJECT);
+                } else if (ackInfo.getEvent() == AVChatEventType.CALLEE_ACK_AGREE) {
+                    avChatController.isCallEstablish.set(true);
+                }
+            }*/
+        }
+    };
+
+    /**
+     * IM 拨打音视频
+     */
+    private void outGoingCalling(String account, final AVChatType callTypeEnum) {
+        Log.d(TAG, "outGoingCalling  " + account);
+        //视频通话
+        if (callTypeEnum == AVChatType.VIDEO) {
+            //打开视频模块
+            AVChatManager.getInstance().enableVideo();
+            //创建视频采集模块并且设置到系统中
+            if (mVideoCapturer == null) {
+                mVideoCapturer = AVChatVideoCapturerFactory.createCameraCapturer();
+                AVChatManager.getInstance().setupVideoCapturer(mVideoCapturer);
+            }
+            //设置本地预览画布
+            AVChatManager.getInstance().setupLocalVideoRender(mLocalTv, false, AVChatVideoScalingType.SCALE_ASPECT_FIT);
+            //开始视频预览
+            AVChatManager.getInstance().startVideoPreview();
+        }
+
+        //呼叫
+        AVChatManager.getInstance().call2(account, callTypeEnum, mNotifyOption, new AVChatCallback<AVChatData>() {
+            @Override
+            public void onSuccess(AVChatData data) {
+                Log.d(TAG, "onSuccess data " + data.getChatId());
+                avChatData = data;
+                //发起会话成功
+            }
+
+            @Override
+            public void onFailed(int code) {
+                Log.d(TAG, "call2 code " + code);
+//                closeRtc();
+//                closeSessions(-1);
+            }
+
+            @Override
+            public void onException(Throwable exception) {
+                Log.d(TAG, "onException " + exception);
+//                closeRtc();
+//                closeSessions(-1);
+            }
+        });
     }
 
     /**
@@ -279,7 +498,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 然后通知activity finish界面
      */
     private void sendServerRefusal() {
-        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 1, Constant.IS_AUDE ? QI_NIU : JU_FENG);
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 1, Constant.IS_AUDE ? QI_NIU : JU_FENG);
         String callRefusalUrl = mProtocol + Constant.PROTOCOL_CALL_REFUSAL;
         Log.d(TAG, "sendServerRefusal : " + callRefusalUrl);
         JsonObjectRequest objectRequest = new JsonObjectRequest(callRefusalUrl, jsonObject
@@ -304,7 +523,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 然后通知activity finish界面
      */
     private void sendServerHangUp() {
-        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 1, Constant.IS_AUDE ? QI_NIU : JU_FENG);
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 1, Constant.IS_AUDE ? QI_NIU : JU_FENG);
         String callHangUpUrl = mProtocol + Constant.PROTOCOL_CALL_HANGUP;
         Log.d(TAG, "sendServerHangUp , callHangUpUrl : " + callHangUpUrl);
         JsonObjectRequest objectRequest = new JsonObjectRequest(callHangUpUrl, jsonObject
@@ -329,7 +548,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      * 然后通知activity finish界面
      */
     private void sendServerCall() {
-        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, 0, Constant.IS_AUDE ? QI_NIU : JU_FENG);
+        JSONObject jsonObject = getJsonObject(mMyId, videoChatInfo.senderId, 0, Constant.IS_AUDE ? QI_NIU : JU_FENG);
         String callOutUrl = mProtocol + Constant.PROTOCOL_CALL_OUT;
         Log.d(TAG, "sendServerCall  callOutUrl : " + callOutUrl);
         JsonObjectRequest objectRequest = new JsonObjectRequest(callOutUrl, jsonObject
@@ -384,12 +603,11 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      *
      * @param myId     myId
      * @param uid      uid
-     * @param cType    cType 0 : app , 1: watch
      * @param jsonType 0: call out , 1: refusal
      * @param pType    0-qiniu 1-jufeng
      * @return json
      */
-    private JSONObject getJsonObject(int myId, String uid, int cType, int jsonType, int pType) {
+    private JSONObject getJsonObject(int myId, String uid, int jsonType, int pType) {
         JSONObject jsonObject = new JSONObject();
         try {
             jsonObject.put(CHILD_ID, myId);
@@ -398,7 +616,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
             } else if (jsonType == 1) {
                 jsonObject.put(SENDER_ID, uid);
             }
-            jsonObject.put(C_TYPE, cType);
+            jsonObject.put(C_TYPE, 0);
             jsonObject.put(P_TYPE, pType);
             jsonObject.put(JSON, "");
         } catch (JSONException e) {
@@ -410,10 +628,16 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     /**
      * 退出应用时，释放资源
      */
-    public void destroy() {
+    void destroy() {
         if (Constant.IS_AUDE && mRTCManager != null) {
             mRTCManager.leaveRoom();
             mRTCManager.destroy();
+            return;
+        }
+        if (Constant.IS_C4) {
+            registerObserves(false);
+            AVChatManager.getInstance().disableRtc();
+            AVChatManager.getInstance().disableVideo();
             return;
         }
         if (!Constant.IS_AUDE && mCallItem != null) {
@@ -436,12 +660,48 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         }
         if (Constant.IS_AUDE) {
             Log.d(TAG, "QN term type " + type);
-            if (type == Constant.REFUSE || type == Constant.ISCHATING_REFUSE) {
+            if (type == Constant.REFUSE) {
                 sendServerRefusal();
             } else if (type == Constant.HANGUP) {
                 sendServerHangUp();
             }
             mRTCManager.leaveRoom();
+            if (type == Constant.ISCHATING_REFUSE) {
+                mCallListener.onCallRemove(" i click end call");
+            }
+            return;
+        }
+        if (Constant.IS_C4) {
+            // 如果是视频通话，关闭视频模块
+            AVChatManager.getInstance().disableVideo();
+            // 如果是视频通话，需要先关闭本地预览
+            AVChatManager.getInstance().stopVideoPreview();
+            //挂断
+            if (avChatData == null) {
+                mCallListener.onCallRemove("endcall,jufeng");
+            } else {
+                AVChatManager.getInstance().hangUp2(avChatData.getChatId(), new AVChatCallback<Void>() {
+                    @Override
+                    public void onSuccess(Void aVoid) {
+                        Log.d(TAG, "onSuccess");
+                        mCallListener.onCallRemove("endcall,jufeng");
+                    }
+
+                    @Override
+                    public void onFailed(int code) {
+                        Log.d(TAG, "onFailed " + code);
+                        mCallListener.onCallRemove("endcall,jufeng");
+                    }
+
+                    @Override
+                    public void onException(Throwable exception) {
+                        Log.d(TAG, "onException " + exception);
+                        mCallListener.onCallRemove("endcall,jufeng");
+                    }
+                });
+            }
+            //销毁音视频引擎和释放资源
+            AVChatManager.getInstance().disableRtc();
             return;
         }
         if (mCallItem != null) {
@@ -456,7 +716,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
      *
      * @param textView 显示时间的控件
      */
-    public void startCallInfoTimer(final TextView textView) {
+    void startCallInfoTimer(final TextView textView) {
         Log.d(TAG, "startCallInfoTimer");
         if (mCallInfoTimer != null) {
             stopCallInfoTimer();
@@ -494,7 +754,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
     /**
      * 切换摄像头
      */
-    public void switchCamera() {
+    void switchCamera() {
         if (Constant.IS_AUDE) {
             mRTCManager.switchCamera(new QNCameraSwitchResultCallback() {
                 @Override
@@ -605,18 +865,6 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
                             ? Constant.NO_NEED_WAITING : Constant.ON_STREAM);
                 }
             }
-        }
-    }
-
-    public void pause() {
-        if (!Constant.IS_AUDE) {
-            //mediaDevice.enableSpeaker(false);
-        }
-    }
-
-    public void resume() {
-        if (!Constant.IS_AUDE && mediaDevice != null) {
-            //mediaDevice.enableSpeaker(true);
         }
     }
 

@@ -22,6 +22,8 @@ public class Constant {
 
     public static final boolean IS_AUDE = Build.MODEL.contains("AUDE") || Build.MODEL.contains("Kido X3");
 
+    public static final boolean IS_C4 = Build.MODEL.contains("C4");
+
     /**
      * settings数据库
      */

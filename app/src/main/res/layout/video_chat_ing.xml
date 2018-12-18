@@ -9,6 +9,16 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <com.netease.nimlib.sdk.avchat.model.AVChatTextureViewRenderer
+        android:id="@+id/avchat_remote"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <com.netease.nimlib.sdk.avchat.model.AVChatTextureViewRenderer
+        android:id="@+id/avchat_local"
+        android:layout_width="0dp"
+        android:layout_height="0dp" />
+
     <com.qiniu.droid.rtc.QNLocalSurfaceView
         android:id="@+id/qnr_local"
         android:layout_width="0dp"

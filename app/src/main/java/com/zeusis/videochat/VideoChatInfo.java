@@ -42,6 +42,9 @@ public class VideoChatInfo implements Parcelable {
                 '}';
     }
 
+    public VideoChatInfo() {
+    }
+
     public VideoChatInfo(String name, String photo, String roomToken, String myId, String senderId, String imei, int chatType) {
         this.name = name;
         this.photo = photo;

@@ -27,6 +27,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.netease.nimlib.sdk.avchat.model.AVChatTextureViewRenderer;
 import com.qiniu.droid.rtc.QNLocalSurfaceView;
 import com.qiniu.droid.rtc.QNRemoteSurfaceView;
 import com.zeusis.videochat.VideoChatInfo;
@@ -65,6 +66,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private String mContactPhoto;
     private String mChatName;
     private String mChatId;
+    private String clientId;
+    private String clientToken;
     private int mType;
 
     private boolean isAnswered = false;
@@ -89,14 +92,14 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             Log.d(TAG, "msg.what : " + msg.what);
             switch (msg.what) {
                 case Constant.NO_NEED_WAITING:
-                    if (!Constant.IS_AUDE) {
+                    if (!(Constant.IS_AUDE || Constant.IS_C4)) {
                         updateRemoteView((SurfaceView) msg.obj);
                     }
                     mTvTips.setVisibility(View.GONE);
                     showWaitView();
                     break;
                 case Constant.ON_STREAM:
-                    if (Constant.IS_AUDE) {
+                    if (Constant.IS_AUDE || Constant.IS_C4) {
                         mTvTips.setVisibility(View.GONE);
                     } else {
                         removeWaitView();
@@ -158,6 +161,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             mWakelock.setReferenceCounted(false);
             mWakelock.acquire(60 * 1000);
         }
+        if (Constant.IS_C4) {
+            return;
+        }
         //注册监听广播
         mObserver = new SettingsObserver(mHandler);
         getContentResolver().registerContentObserver(Constant.SETTING_URI, true, mObserver);
@@ -171,6 +177,17 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      */
     private void initIntent(Intent intent) {
         videoChatInfo = intent.getParcelableExtra(Constant.EXTRA_VIDEO_INFO);
+        if (videoChatInfo == null) {
+            videoChatInfo = new VideoChatInfo();
+            videoChatInfo.chatType = intent.getIntExtra("type", Constant.CALLOUT);
+            videoChatInfo.senderId = intent.getStringExtra("senderId");
+            videoChatInfo.myId = intent.getStringExtra("myId");
+            videoChatInfo.photo = intent.getStringExtra("photo");
+            videoChatInfo.name = intent.getStringExtra("name");
+            videoChatInfo.roomToken = intent.getStringExtra("roomToken");
+        }
+        clientId = intent.getStringExtra("clientId");
+        clientToken = intent.getStringExtra("clientToken");
         mContactPhoto = videoChatInfo.photo;
         mChatName = videoChatInfo.name;
         mType = videoChatInfo.chatType;
@@ -208,11 +225,11 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      */
     private void initCallOutUi() {
         setContentView(R.layout.video_chat_call_out);
-        mCallOutRl = (RelativeLayout) findViewById(R.id.rl_call_out_bg);
+        mCallOutRl = findViewById(R.id.rl_call_out_bg);
         mIvOutEndCall = findViewById(R.id.iv_out_end_call);
         mIvOutEndCall.setOnClickListener(this);
-        TextView tvName = (TextView) findViewById(R.id.tv_out_name);
-        ImageView bgCallOut = (ImageView) findViewById(R.id.iv_bg_call_out);
+        TextView tvName = findViewById(R.id.tv_out_name);
+        ImageView bgCallOut = findViewById(R.id.iv_bg_call_out);
         tvName.setText(mChatName);
         Log.d(TAG, "call out : " + mChatName);
         Utils.setDefaultBackgroundPhoto(mContactPhoto, bgCallOut);
@@ -223,14 +240,14 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      */
     private void initIncallUi() {
         setContentView(R.layout.video_chat_incall);
-        mInCallRl = (RelativeLayout) findViewById(R.id.rl_video_bg);
-        mAnswerIv = (ImageView) findViewById(R.id.iv_incall_answer_call);
-        ImageView bgIncall = (ImageView) findViewById(R.id.iv_bg_incall);
-        mIvIncallEnd = (ImageView) findViewById(R.id.iv_incall_end_call);
+        mInCallRl = findViewById(R.id.rl_video_bg);
+        mAnswerIv = findViewById(R.id.iv_incall_answer_call);
+        ImageView bgIncall = findViewById(R.id.iv_bg_incall);
+        mIvIncallEnd = findViewById(R.id.iv_incall_end_call);
         mAnswerIv.setOnClickListener(this);
         mIvIncallEnd.setOnClickListener(this);
         Utils.setDefaultBackgroundPhoto(mContactPhoto, bgIncall);
-        TextView tvName = (TextView) findViewById(R.id.tv_incall_name);
+        TextView tvName = findViewById(R.id.tv_incall_name);
         tvName.setText(mChatName);
         Log.d(TAG, "call in : " + mChatName);
         if (!Constant.IS_AUDE) {
@@ -247,17 +264,36 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
      */
     private void initVideoSettings() {
         mVideoChatManager = new VideoChatManager();
-        mVideoChatManager.init(this, videoChatInfo);
+        mVideoChatManager.init(this, videoChatInfo, clientId, clientToken);
         mVideoChatingView = (RelativeLayout) LayoutInflater.from(this).inflate(R.layout.video_chat_ing, null);
-        QNRemoteSurfaceView qnRemoteSurfaceView = (QNRemoteSurfaceView) mVideoChatingView.findViewById(R.id.qnr_remote);
-        mVideoChatManager.setRemoteView(qnRemoteSurfaceView);
-        QNLocalSurfaceView qnLocalSurfaceView = (QNLocalSurfaceView) mVideoChatingView.findViewById(R.id.qnr_local);
-        mVideoChatManager.setLocalView(qnLocalSurfaceView);
+        QNRemoteSurfaceView qnRemoteSurfaceView = mVideoChatingView.findViewById(R.id.qnr_remote);
+        QNLocalSurfaceView qnLocalSurfaceView = mVideoChatingView.findViewById(R.id.qnr_local);
+        AVChatTextureViewRenderer avchatRemote = mVideoChatingView.findViewById(R.id.avchat_remote);
+        AVChatTextureViewRenderer avchatLocal = mVideoChatingView.findViewById(R.id.avchat_local);
+        if (Constant.IS_AUDE) {
+            avchatRemote.setVisibility(View.GONE);
+            avchatLocal.setVisibility(View.GONE);
+            mVideoChatManager.setRemoteView(qnRemoteSurfaceView);
+            mVideoChatManager.setLocalView(qnLocalSurfaceView);
+        } else if (Constant.IS_C4) {
+            qnRemoteSurfaceView.setVisibility(View.GONE);
+            qnLocalSurfaceView.setVisibility(View.GONE);
+            mVideoChatManager.setIMRemoteView(avchatRemote);
+            mVideoChatManager.setIMLocalView(avchatLocal);
+        } else {
+            qnRemoteSurfaceView.setVisibility(View.GONE);
+            qnLocalSurfaceView.setVisibility(View.GONE);
+            avchatRemote.setVisibility(View.GONE);
+            avchatLocal.setVisibility(View.GONE);
+        }
         //init chating view
         initChatingView();
         //set listener
         mVideoChatManager.setCallListener(this);
         mVideoChatManager.initVideoChat();
+        if (Constant.IS_C4) {
+            return;
+        }
         //注册对方主动挂断广播
         mRefusalReceiver = new RefusalReceiver();
         IntentFilter intentFilter = new IntentFilter();
@@ -269,14 +305,15 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
 
     private void initChatingView() {
         mVideoChatingView.findViewById(R.id.video_chating).setOnClickListener(this);
-        mIvChangeCamera = (ImageView) mVideoChatingView.findViewById(R.id.iv_change_camera);
-        mTvTime = (TextView) mVideoChatingView.findViewById(R.id.tv_ing_time);
-        if (!Constant.IS_AUDE) {
-            mIvChangeCamera.setVisibility(View.INVISIBLE);
-        } else {
+        mIvChangeCamera = mVideoChatingView.findViewById(R.id.iv_change_camera);
+        mTvTime = mVideoChatingView.findViewById(R.id.tv_ing_time);
+        if (Constant.IS_AUDE) {
+            //only kx double cam
             mIvChangeCamera.setOnClickListener(this);
+        } else {
+            mIvChangeCamera.setVisibility(View.INVISIBLE);
         }
-        mIvChatingEndCall = (ImageView) mVideoChatingView.findViewById(R.id.iv_ing_end_call);
+        mIvChatingEndCall = mVideoChatingView.findViewById(R.id.iv_ing_end_call);
         mIvChatingEndCall.setOnClickListener(this);
         mTvTips = mVideoChatingView.findViewById(R.id.tv_tips);
     }
@@ -293,7 +330,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         super.onResume();
         Log.d(TAG, "onResume");
         isPaused = false;
-        mVideoChatManager.resume();
         mSoundPool.resume(mInCallId);
         Intent intent = new Intent("com.kidosc.videochat.ischating");
         sendBroadcast(intent);
@@ -502,7 +538,6 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     protected void onPause() {
         super.onPause();
         Log.d(TAG, "onPause");
-        mVideoChatManager.pause();
         isPaused = true;
         mSoundPool.pause(mInCallId);
     }
@@ -517,14 +552,17 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
             mVideoChatManager = null;
         }
         mHandler.removeCallbacksAndMessages(null);
-        if (mRefusalReceiver != null) {
-            unregisterReceiver(mRefusalReceiver);
-        }
         if (mWakelock != null) {
             mWakelock.release();
             mWakelock = null;
         }
         mSoundPool.release();
+        if (Constant.IS_C4) {
+            return;
+        }
+        if (mRefusalReceiver != null) {
+            unregisterReceiver(mRefusalReceiver);
+        }
         if (mObserver != null) {
             getContentResolver().unregisterContentObserver(mObserver);
         }
@@ -573,7 +611,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
          *
          * @param handler The handler to run {@link #onChange} on, or null if none.
          */
-        public SettingsObserver(Handler handler) {
+        SettingsObserver(Handler handler) {
             super(handler);
         }
 
