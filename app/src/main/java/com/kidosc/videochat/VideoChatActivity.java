@@ -27,6 +27,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.kidosc.videochat.utils.Utils;
 import com.netease.nimlib.sdk.avchat.model.AVChatTextureViewRenderer;
 import com.qiniu.droid.rtc.QNLocalSurfaceView;
 import com.qiniu.droid.rtc.QNRemoteSurfaceView;
@@ -46,6 +47,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private static final int CHECK_IS_ANSWER = 3;
     private static final int MONITOR_CHECK = 5;
     private static final int GG = 6;
+    private static final int ENABLE_ANSWER = 9;
 
     private RelativeLayout mInCallRl;
     private RelativeLayout mCallOutRl;
@@ -130,6 +132,10 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 case GG:
                     finish();
                     onDestroy();
+                    break;
+                case ENABLE_ANSWER:
+                    mAnswerIv.setEnabled(true);
+                    mAnswerIv.setClickable(true);
                     break;
                 default:
                     break;
@@ -250,7 +256,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         TextView tvName = findViewById(R.id.tv_incall_name);
         tvName.setText(mChatName);
         Log.d(TAG, "call in : " + mChatName);
-        if (!Constant.IS_AUDE) {
+        if (!Constant.IS_AUDE && !Constant.IS_C4) {
             //一开始 接听界面是假的 ，按钮先屏蔽
             mAnswerIv.setEnabled(false);
             mAnswerIv.setClickable(false);
@@ -343,6 +349,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 Log.d(TAG, "click inCall answer");
                 mAnswerIv.setEnabled(false);
                 mAnswerIv.setClickable(false);
+                mHandler.sendEmptyMessageDelayed(ENABLE_ANSWER, 1500);
                 mVideoChatManager.onAnswerCall();
                 break;
             case R.id.iv_incall_end_call:

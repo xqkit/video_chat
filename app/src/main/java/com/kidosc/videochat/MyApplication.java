@@ -34,7 +34,6 @@ public class MyApplication extends Application {
         }
     }
 
-
     // 如果已经存在用户登录信息，返回LoginInfo，否则返回null即可
     /*private LoginInfo loginInfo() {
         // 从本地读取上次登录成功时保存的用户登录信息

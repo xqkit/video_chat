@@ -1,4 +1,4 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.utils;
 
 import android.app.Dialog;
 import android.content.Context;
@@ -9,6 +9,8 @@ import android.os.Handler;
 import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
+
+import com.kidosc.videochat.R;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
