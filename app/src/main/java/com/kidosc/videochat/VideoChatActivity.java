@@ -47,7 +47,7 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
     private static final int CHECK_IS_ANSWER = 3;
     private static final int MONITOR_CHECK = 5;
     private static final int GG = 6;
-    private static final int ENABLE_ANSWER = 9;
+    private static final int ENABLE_BUTTON = 9;
 
     private RelativeLayout mInCallRl;
     private RelativeLayout mCallOutRl;
@@ -133,9 +133,23 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                     finish();
                     onDestroy();
                     break;
-                case ENABLE_ANSWER:
-                    mAnswerIv.setEnabled(true);
-                    mAnswerIv.setClickable(true);
+                case ENABLE_BUTTON:
+                    if (mAnswerIv != null) {
+                        mAnswerIv.setEnabled(true);
+                        mAnswerIv.setClickable(true);
+                    }
+                    if (mIvIncallEnd != null) {
+                        mIvIncallEnd.setEnabled(true);
+                        mIvIncallEnd.setClickable(true);
+                    }
+                    if (mIvOutEndCall != null) {
+                        mIvOutEndCall.setEnabled(true);
+                        mIvOutEndCall.setClickable(true);
+                    }
+                    if (mIvChatingEndCall != null) {
+                        mIvChatingEndCall.setEnabled(true);
+                        mIvChatingEndCall.setClickable(true);
+                    }
                     break;
                 default:
                     break;
@@ -238,7 +252,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         ImageView bgCallOut = findViewById(R.id.iv_bg_call_out);
         tvName.setText(mChatName);
         Log.d(TAG, "call out : " + mChatName);
-        Utils.setDefaultBackgroundPhoto(mContactPhoto, bgCallOut);
+        if (!Constant.IS_C4) {
+            Utils.setDefaultBackgroundPhoto(mContactPhoto, bgCallOut);
+        }
     }
 
     /**
@@ -252,16 +268,21 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         mIvIncallEnd = findViewById(R.id.iv_incall_end_call);
         mAnswerIv.setOnClickListener(this);
         mIvIncallEnd.setOnClickListener(this);
-        Utils.setDefaultBackgroundPhoto(mContactPhoto, bgIncall);
+        if (!Constant.IS_C4) {
+            Utils.setDefaultBackgroundPhoto(mContactPhoto, bgIncall);
+        }
         TextView tvName = findViewById(R.id.tv_incall_name);
         tvName.setText(mChatName);
         Log.d(TAG, "call in : " + mChatName);
-        if (!Constant.IS_AUDE && !Constant.IS_C4) {
+        if (!Constant.IS_AUDE) {
             //一开始 接听界面是假的 ，按钮先屏蔽
             mAnswerIv.setEnabled(false);
             mAnswerIv.setClickable(false);
             mIvIncallEnd.setEnabled(false);
             mIvIncallEnd.setClickable(false);
+        }
+        if (Constant.IS_C4) {
+            mHandler.sendEmptyMessageDelayed(ENABLE_BUTTON, 2000);
         }
     }
 
@@ -349,7 +370,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 Log.d(TAG, "click inCall answer");
                 mAnswerIv.setEnabled(false);
                 mAnswerIv.setClickable(false);
-                mHandler.sendEmptyMessageDelayed(ENABLE_ANSWER, 1500);
+                if (Constant.IS_C4) {
+                    mHandler.sendEmptyMessageDelayed(ENABLE_BUTTON, 1500);
+                }
                 mVideoChatManager.onAnswerCall();
                 break;
             case R.id.iv_incall_end_call:
@@ -357,6 +380,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 Log.d(TAG, "click inCall end");
                 mIvIncallEnd.setEnabled(false);
                 mIvIncallEnd.setClickable(false);
+                if (Constant.IS_C4) {
+                    mHandler.sendEmptyMessageDelayed(ENABLE_BUTTON, 1500);
+                }
                 mVideoChatManager.endCall(Constant.REFUSE);
                 break;
             case R.id.iv_out_end_call:
@@ -364,6 +390,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 Log.d(TAG, "click outCall end");
                 mIvOutEndCall.setEnabled(false);
                 mIvOutEndCall.setClickable(false);
+                if (Constant.IS_C4) {
+                    mHandler.sendEmptyMessageDelayed(ENABLE_BUTTON, 1500);
+                }
                 mVideoChatManager.endCall(Constant.HANGUP);
                 break;
             case R.id.iv_ing_end_call:
@@ -371,6 +400,9 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
                 Log.d(TAG, "click chating end call");
                 mIvChatingEndCall.setEnabled(false);
                 mIvChatingEndCall.setClickable(false);
+                if (Constant.IS_C4) {
+                    mHandler.sendEmptyMessageDelayed(ENABLE_BUTTON, 1500);
+                }
                 mVideoChatManager.endCall(Constant.ISCHATING_REFUSE);
                 break;
             case R.id.video_chating:
@@ -448,9 +480,15 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         Log.d(TAG, "showWaitView");
         if (mType == Constant.INCALL) {
             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mInCallRl.getWidth(), mInCallRl.getHeight());
+            if (Constant.IS_C4) {
+                mVideoChatingView.setBackgroundColor(getResources().getColor(R.color.black));
+            }
             mInCallRl.addView(mVideoChatingView, params);
         } else if (mType == Constant.CALLOUT) {
             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mCallOutRl.getWidth(), mCallOutRl.getHeight());
+            if (Constant.IS_C4) {
+                mVideoChatingView.setBackgroundColor(getResources().getColor(R.color.black));
+            }
             mCallOutRl.addView(mVideoChatingView, params);
         }
     }
