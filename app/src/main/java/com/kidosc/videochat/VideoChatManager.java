@@ -375,7 +375,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         @Override
         public void onUserJoined(String account) {
             Log.d(TAG, "onUserJoined " + account);
-            AVChatManager.getInstance().setupRemoteVideoRender(account, mRemoteTv, true, AVChatVideoScalingType.SCALE_ASPECT_FIT);
+            AVChatManager.getInstance().setupRemoteVideoRender(account, mRemoteTv, true, AVChatVideoScalingType.SCALE_ASPECT_BALANCED);
             mBeginTime = System.currentTimeMillis() / 1000;
             mCallListener.onCallUpdate(null, videoChatInfo.chatType == Constant.CALLOUT ? Constant.NO_NEED_WAITING : Constant.ON_STREAM);
         }
@@ -395,7 +395,7 @@ public class VideoChatManager implements JCMediaDeviceCallback, JCCallCallback, 
         public void onCallEstablished() {
             super.onCallEstablished();
             //设置本地预览画布
-            AVChatManager.getInstance().setupLocalVideoRender(mLocalTv, false, AVChatVideoScalingType.SCALE_ASPECT_FIT);
+            AVChatManager.getInstance().setupLocalVideoRender(mLocalTv, false, AVChatVideoScalingType.SCALE_ASPECT_BALANCED);
             Log.d(TAG, "onCallEstablished");
         }
     };

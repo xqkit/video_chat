@@ -32,7 +32,7 @@ import com.kidosc.videochat.listener.CallItemListener;
 import com.kidosc.videochat.service.VideoChatService;
 import com.kidosc.videochat.utils.Utils;
 import com.kidosc.videochat.view.VolumeDialog;
-import com.netease.nimlib.sdk.avchat.model.AVChatTextureViewRenderer;
+import com.netease.nimlib.sdk.avchat.model.AVChatSurfaceViewRenderer;
 import com.qiniu.droid.rtc.QNLocalSurfaceView;
 import com.qiniu.droid.rtc.QNRemoteSurfaceView;
 import com.zeusis.videochat.VideoChatInfo;
@@ -299,8 +299,8 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         mVideoChatingView = (RelativeLayout) LayoutInflater.from(this).inflate(R.layout.video_chat_ing, null);
         QNRemoteSurfaceView qnRemoteSurfaceView = mVideoChatingView.findViewById(R.id.qnr_remote);
         QNLocalSurfaceView qnLocalSurfaceView = mVideoChatingView.findViewById(R.id.qnr_local);
-        AVChatTextureViewRenderer avchatRemote = mVideoChatingView.findViewById(R.id.avchat_remote);
-        AVChatTextureViewRenderer avchatLocal = mVideoChatingView.findViewById(R.id.avchat_local);
+        AVChatSurfaceViewRenderer avchatRemote = mVideoChatingView.findViewById(R.id.avchat_remote);
+        AVChatSurfaceViewRenderer avchatLocal = mVideoChatingView.findViewById(R.id.avchat_local);
         if (Constant.IS_AUDE) {
             avchatRemote.setVisibility(View.GONE);
             avchatLocal.setVisibility(View.GONE);
@@ -493,13 +493,13 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         if (mType == Constant.INCALL) {
             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mInCallRl.getWidth(), mInCallRl.getHeight());
             if (Constant.IS_C4) {
-                mVideoChatingView.setBackgroundColor(getResources().getColor(R.color.black));
+//                mVideoChatingView.setBackgroundColor(getResources().getColor(R.color.black));
             }
             mInCallRl.addView(mVideoChatingView, params);
         } else if (mType == Constant.CALLOUT) {
             RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(mCallOutRl.getWidth(), mCallOutRl.getHeight());
             if (Constant.IS_C4) {
-                mVideoChatingView.setBackgroundColor(getResources().getColor(R.color.black));
+//                mVideoChatingView.setBackgroundColor(getResources().getColor(R.color.black));
             }
             mCallOutRl.addView(mVideoChatingView, params);
         }
