@@ -1,4 +1,4 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.view;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -6,6 +6,8 @@ import android.graphics.Paint;
 import android.media.AudioManager;
 import android.util.AttributeSet;
 import android.view.View;
+
+import com.kidosc.videochat.R;
 
 
 public class VolumeView extends View implements VolumeDialog.OnChangeListener {

@@ -1,9 +1,12 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.receiver;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
+
+import com.kidosc.videochat.constants.Constant;
+import com.kidosc.videochat.service.VideoChatService;
 
 /**
  * Desc:
@@ -16,6 +19,10 @@ public class VideoChatReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "");
+        Log.d(TAG, "action : " + intent.getAction());
+        if (Constant.IS_C4) {
+            Intent intent1 = new Intent(context, VideoChatService.class);
+            context.startService(intent1);
+        }
     }
 }

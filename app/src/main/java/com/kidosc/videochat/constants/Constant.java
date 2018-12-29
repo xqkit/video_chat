@@ -1,4 +1,4 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.constants;
 
 import android.net.Uri;
 import android.os.Build;

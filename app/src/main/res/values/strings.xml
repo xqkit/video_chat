@@ -9,4 +9,11 @@
     <string name="no_remote_view">no remote view</string>
     <string name="call_failed">call failed</string>
     <string name="call_waiting">waiting call ... </string>
+    <string name="call_busy">he is busy now</string>
+    <string name="call_reject">he reject you</string>
+    <string name="connect_busy">connect busy</string>
+    <string name="verify_fail">verify fail</string>
+    <string name="invalid_channel_id">invalid channel id</string>
+    <string name="connect_error">connect error</string>
+    <string name="hangup_he">he hang up</string>
 </resources>

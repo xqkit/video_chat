@@ -1,4 +1,4 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.view;
 
 import android.app.Dialog;
 import android.content.Context;
@@ -13,6 +13,8 @@ import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+
+import com.kidosc.videochat.R;
 
 public class VolumeDialog {
 

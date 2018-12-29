@@ -1,4 +1,4 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.global;
 
 import android.content.Context;
 import android.os.Process;

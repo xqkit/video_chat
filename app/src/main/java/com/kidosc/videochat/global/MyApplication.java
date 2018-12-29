@@ -1,8 +1,9 @@
-package com.kidosc.videochat;
+package com.kidosc.videochat.global;
 
 import android.app.Application;
 import android.util.Log;
 
+import com.kidosc.videochat.constants.Constant;
 import com.netease.nimlib.sdk.NIMClient;
 import com.netease.nimlib.sdk.util.NIMUtil;
 

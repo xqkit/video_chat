@@ -12,7 +12,7 @@
         android:layout_height="30dp"
         android:src="@drawable/tmo_icon_popup_sounds" />
 
-    <com.kidosc.videochat.VolumeView
+    <com.kidosc.videochat.view.VolumeView
         android:id="@+id/volume_view"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

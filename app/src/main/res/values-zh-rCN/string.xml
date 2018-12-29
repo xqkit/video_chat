@@ -9,4 +9,11 @@
     <string name="no_remote_view">没有收到对方的视频流</string>
     <string name="call_failed">拨叫失败</string>
     <string name="call_waiting">等待接收中···</string>
+    <string name="call_busy">对方正忙</string>
+    <string name="call_reject">对方拒接</string>
+    <string name="connect_busy">连接超时</string>
+    <string name="verify_fail">验证失败</string>
+    <string name="invalid_channel_id">无效channelid</string>
+    <string name="connect_error">连接服务器错误</string>
+    <string name="hangup_he">对方已挂断</string>
 </resources>

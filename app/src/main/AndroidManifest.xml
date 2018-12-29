@@ -8,9 +8,10 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
-        android:name=".MyApplication"
+        android:name=".global.MyApplication"
         android:allowBackup="true"
         android:label="@string/app_name"
+        android:persistent="true"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
@@ -61,6 +62,15 @@
             android:authorities="com.kidosc.videochat.ipc.provider"
             android:exported="false"
             android:process=":core" />
+
+        <service android:name=".service.VideoChatService" />
+
+        <receiver android:name=".receiver.VideoChatReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".VideoChatActivity"
             android:exported="true"

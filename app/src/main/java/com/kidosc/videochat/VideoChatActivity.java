@@ -27,7 +27,11 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.kidosc.videochat.constants.Constant;
+import com.kidosc.videochat.listener.CallItemListener;
+import com.kidosc.videochat.service.VideoChatService;
 import com.kidosc.videochat.utils.Utils;
+import com.kidosc.videochat.view.VolumeDialog;
 import com.netease.nimlib.sdk.avchat.model.AVChatTextureViewRenderer;
 import com.qiniu.droid.rtc.QNLocalSurfaceView;
 import com.qiniu.droid.rtc.QNRemoteSurfaceView;
@@ -360,6 +364,14 @@ public class VideoChatActivity extends Activity implements View.OnClickListener,
         mSoundPool.resume(mInCallId);
         Intent intent = new Intent("com.kidosc.videochat.ischating");
         sendBroadcast(intent);
+        if (Constant.IS_C4) {
+            boolean isExisted = Utils.isServiceExisted(this, "com.kidosc.videochat.service.VideoChatService");
+            Log.d(TAG, "isExisted service " + isExisted);
+            if (!isExisted) {
+                Intent intent1 = new Intent(this, VideoChatService.class);
+                startService(intent1);
+            }
+        }
     }
 
     @Override
